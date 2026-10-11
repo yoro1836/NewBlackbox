@@ -389,7 +389,33 @@ public class BActivityThread extends IBActivityThread.Stub {
             }
         }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            WebView.setDataDirectorySuffix(getUserId() + ":" + packageName + ":" + processName);
+            // Scope the directory per stub: duplicate live stubs for the same
+            // virtual process (e.g. after a server restart) must never share
+            // one Chromium profile, or the newcomer crashes on the lock.
+            // Charset restricted: OEM WebView builds reject ':' silently.
+            int stubId = getAppPid();
+            String suffix = getUserId() + "_" + packageName + "_" + processName;
+            if (stubId >= 0) {
+                suffix += "_" + stubId;
+            }
+            suffix = suffix.replaceAll("[^A-Za-z0-9._-]", "_");
+            Slog.d(TAG, "WebView suffix for " + packageName + ": " + suffix);
+            try {
+                WebView.setDataDirectorySuffix(suffix);
+                // Read back: a mismatch means someone reset it afterwards.
+                try {
+                    java.lang.reflect.Field f =
+                            Class.forName("android.webkit.WebViewFactory")
+                                    .getDeclaredField("sDataDirectorySuffix");
+                    f.setAccessible(true);
+                    Object current = f.get(null);
+                    Slog.d(TAG, "WebView suffix readback: " + current);
+                } catch (Throwable t) {
+                    Slog.d(TAG, "WebView suffix readback unavailable: " + t.getMessage());
+                }
+            } catch (Throwable t) {
+                Slog.w(TAG, "WebView suffix rejected: " + suffix, t);
+            }
         }
 
         VirtualRuntime.setupRuntime(processName, applicationInfo);
@@ -472,6 +498,10 @@ public class BActivityThread extends IBActivityThread.Stub {
             BRActivityThread.get(BlackBoxCore.mainThread())._set_mInitialApplication(mInitialApplication);
             ContextCompat.fix((Context) BRActivityThread.get(BlackBoxCore.mainThread()).getSystemContext());
             ContextCompat.fix(mInitialApplication);
+            // Virtual providers first (settings-like ones published ahead of
+            // the rest): provider onCreate() may query siblings synchronously,
+            // and those nested queries must resolve locally.
+            installVirtualProviders(application, packageName, processName);
             installProviders(mInitialApplication, bindData.processName, bindData.providers);
 
             onBeforeApplicationOnCreate(packageName, processName, application);
@@ -896,8 +926,7 @@ public class BActivityThread extends IBActivityThread.Stub {
         try {
             for (ProviderInfo providerInfo : providers) {
                 try {
-                    if (processName.equals(providerInfo.processName) ||
-                            providerInfo.processName.equals(context.getPackageName()) || providerInfo.multiprocess) {
+                    if (processName.equals(providerInfo.processName) || providerInfo.multiprocess) {
                         installProvider(BlackBoxCore.mainThread(), context, providerInfo, null);
                     }
                 } catch (SecurityException se) {
@@ -1025,8 +1054,7 @@ public class BActivityThread extends IBActivityThread.Stub {
                         Slog.w(TAG, "Skipping anti-detect ContentProvider: " + providerInfo.name);
                         continue;
                     }
-                    if (processName.equals(providerInfo.processName) ||
-                            providerInfo.processName.equals(context.getPackageName()) || providerInfo.multiprocess) {
+                    if (processName.equals(providerInfo.processName) || providerInfo.multiprocess) {
                         installProvider(BlackBoxCore.mainThread(), context, providerInfo, null);
                     }
                 } catch (Throwable ignored) {
@@ -1037,6 +1065,48 @@ public class BActivityThread extends IBActivityThread.Stub {
             ContentProviderDelegate.init();
         }
     }
+
+    /**
+     * Install virtual providers declared by the bound package.
+     * Mirrors framework behavior (all manifest providers installed before app code
+     * runs) so same-process queries during startup resolve locally instead of failing.
+     */
+    private void installVirtualProviders(Application application, String packageName, String processName) {
+        try {
+            if (application == null || packageName == null || processName == null) {
+                return;
+            }
+            PackageInfo packageInfo = BlackBoxCore.getBPackageManager()
+                    .getPackageInfo(packageName, PackageManager.GET_PROVIDERS, getUserId());
+            if (packageInfo == null || packageInfo.providers == null) {
+                return;
+            }
+            // Providers' onCreate() may query other providers synchronously.
+            // Publish the manifest providers before app code runs so nested
+            // queries resolve through the virtual provider map.
+            for (android.content.pm.ProviderInfo providerInfo : packageInfo.providers) {
+                try {
+                    if (providerInfo == null || providerInfo.authority == null) {
+                        continue;
+                    }
+                    if (providerInfo.name != null && isAntiDetectProvider(providerInfo.name)) {
+                        continue;
+                    }
+                    // Install regardless of declared process: stub processes never
+                    // match virtual process names, and cross-process provider calls
+                    // are fragile here, so each process stays self-sufficient.
+                    installProvider(BlackBoxCore.mainThread(), application, providerInfo, null);
+                    Slog.d(TAG, "Installed virtual provider: " + providerInfo.name);
+                } catch (Throwable e) {
+                    Slog.w(TAG, "Failed to install virtual provider " + providerInfo.name
+                            + " auth=" + providerInfo.authority + ": " + e);
+                }
+            }
+        } catch (Throwable e) {
+            Slog.w(TAG, "Failed to install virtual providers: " + e.getMessage());
+        }
+    }
+
 
     public Object getPackageInfo() {
         return mBoundApplication.info;
@@ -1184,12 +1254,17 @@ public class BActivityThread extends IBActivityThread.Stub {
     }
 
     private void onBeforeCreateApplication(String packageName, String processName, Context context) {
+        // Spoof first: never skip it if module loading below throws.
+        top.niunaijun.blackbox.core.spoof.SpoofManager.applyProfile();
+        top.niunaijun.blackbox.core.xposed.XposedManager.onAppLoading(packageName, processName, context);
         for (AppLifecycleCallback appLifecycleCallback : BlackBoxCore.get().getAppLifecycleCallbacks()) {
             appLifecycleCallback.beforeCreateApplication(packageName, processName, context, BActivityThread.getUserId());
         }
     }
 
     private void onBeforeApplicationOnCreate(String packageName, String processName, Application application) {
+        // Second chance: module init may reset Build fields; re-apply wins.
+        top.niunaijun.blackbox.core.spoof.SpoofManager.applyProfile();
         for (AppLifecycleCallback appLifecycleCallback : BlackBoxCore.get().getAppLifecycleCallbacks()) {
             appLifecycleCallback.beforeApplicationOnCreate(packageName, processName, application, BActivityThread.getUserId());
         }

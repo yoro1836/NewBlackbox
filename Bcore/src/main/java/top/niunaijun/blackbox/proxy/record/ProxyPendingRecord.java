@@ -12,14 +12,17 @@ public class ProxyPendingRecord {
         mTarget = target;
     }
 
+    public static final String KEY_USER_ID = "_B_|_P_user_id_";
+    public static final String KEY_TARGET = "_B_|_P_target_";
+
     public static void saveStub(Intent shadow, Intent target, int userId) {
-        shadow.putExtra("_B_|_P_user_id_", userId);
-        shadow.putExtra("_B_|_P_target_", target);
+        shadow.putExtra(KEY_USER_ID, userId);
+        shadow.putExtra(KEY_TARGET, target);
     }
 
     public static ProxyPendingRecord create(Intent intent) {
-        int userId = intent.getIntExtra("_B_|_P_user_id_", 0);
-        Intent target = intent.getParcelableExtra("_B_|_P_target_");
+        int userId = intent.getIntExtra(KEY_USER_ID, 0);
+        Intent target = intent.getParcelableExtra(KEY_TARGET);
         return new ProxyPendingRecord(target, userId);
     }
 

@@ -24,7 +24,8 @@ public class SimpleCrashFix {
             
             
             installGlobalExceptionHandler();
-            
+            installMainLooperGuard();
+
             
             installContextWrapperHook();
             
@@ -36,6 +37,33 @@ public class SimpleCrashFix {
     }
     
     
+    /**
+     * The handlers below "recover" a main-thread exception by returning from it. By then the
+     * exception has already unwound Looper.loop(), so the process stays alive with no UI thread:
+     * the window is still there, input is never handled and the system raises an ANR (Asphalt
+     * froze this way after a WebView constructor threw). Keep the main looper running instead.
+     */
+    private static void installMainLooperGuard() {
+        try {
+            final android.os.Looper main = android.os.Looper.getMainLooper();
+            new android.os.Handler(main).post(new Runnable() {
+                @Override
+                public void run() {
+                    while (true) {
+                        try {
+                            android.os.Looper.loop();
+                            return;
+                        } catch (Throwable t) {
+                            Slog.w(TAG, "Main looper survived an exception: " + t, t);
+                        }
+                    }
+                }
+            });
+        } catch (Throwable t) {
+            Slog.w(TAG, "Failed to install main looper guard: " + t.getMessage());
+        }
+    }
+
     private static void installGlobalExceptionHandler() {
         try {
             
@@ -80,6 +108,15 @@ public class SimpleCrashFix {
                     }
 
                     
+                    // A background thread of a virtual Google app (GMS IntentOperations, Play
+                    // Store executors) hitting a host-system restriction must not take the whole
+                    // process down: every restart re-ran the same operation and crash-looped
+                    // GMS. Pool workers are replaced, and the main thread stays fatal.
+                    if (isGoogleBackgroundThreadCrash(thread)) {
+                        Slog.w(TAG, "Swallowed background crash in " + thread.getName() + ": " + throwable);
+                        return;
+                    }
+
                     Slog.e(TAG, "Fatal crash detected, attempting to report before death...");
                     try {
                          BlackBoxCore.get().sendLogs("FATAL CRASH (Uncaught): " + throwable.getMessage(), false);
@@ -147,6 +184,18 @@ public class SimpleCrashFix {
     }
     
     
+    private static boolean isGoogleBackgroundThreadCrash(Thread thread) {
+        try {
+            if (thread == null || thread == android.os.Looper.getMainLooper().getThread()) {
+                return false;
+            }
+            String pkg = top.niunaijun.blackbox.app.BActivityThread.getAppPackageName();
+            return pkg != null && top.niunaijun.blackbox.core.GmsCore.isGoogleAppOrService(pkg);
+        } catch (Throwable ignored) {
+            return false;
+        }
+    }
+
     private static boolean isGooglePlayServicesCrash(Throwable throwable) {
         if (throwable == null) {
             return false;

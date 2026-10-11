@@ -51,6 +51,15 @@ public class IAppOpsManagerProxy extends BinderInvocationStub {
             methodName.startsWith("note") || 
             methodName.startsWith("start")) {
             Slog.d(TAG, "AppOps invoke: Bypassing system for " + methodName + ", allowing operation");
+            Class<?> returnType = method.getReturnType();
+            if ("android.app.SyncNotedAppOp".equals(returnType.getName())) {
+                // noteOperation/startOperation/noteProxyOperation return SyncNotedAppOp since
+                // Android 11; an Integer here threw ClassCastException and killed GMS.
+                return newAllowedSyncNotedAppOp(returnType, args);
+            }
+            if (returnType == void.class) {
+                return null;
+            }
             return AppOpsManager.MODE_ALLOWED;
         }
         
@@ -79,6 +88,45 @@ public class IAppOpsManagerProxy extends BinderInvocationStub {
     @Override
     public boolean isBadEnv() {
         return false;
+    }
+
+    private static Object newAllowedSyncNotedAppOp(Class<?> type, Object[] args) {
+        int opCode = 0;
+        String pkg = BlackBoxCore.getHostPkg();
+        String tag = null;
+        if (args != null) {
+            boolean codeFound = false;
+            boolean pkgFound = false;
+            for (Object a : args) {
+                if (!codeFound && a instanceof Integer) {
+                    opCode = (Integer) a;
+                    codeFound = true;
+                } else if (a instanceof String) {
+                    if (!pkgFound) {
+                        pkg = (String) a;
+                        pkgFound = true;
+                    } else if (tag == null) {
+                        tag = (String) a;
+                    }
+                }
+            }
+        }
+        try {
+            java.lang.reflect.Constructor<?> c = type.getDeclaredConstructor(
+                    int.class, int.class, String.class, String.class);
+            c.setAccessible(true);
+            return c.newInstance(AppOpsManager.MODE_ALLOWED, opCode, tag, pkg);
+        } catch (Throwable e) {
+            Slog.w(TAG, "SyncNotedAppOp(int,int,String,String) unavailable: " + e);
+        }
+        try {
+            java.lang.reflect.Constructor<?> c = type.getDeclaredConstructor(int.class, String.class);
+            c.setAccessible(true);
+            return c.newInstance(opCode, tag);
+        } catch (Throwable e) {
+            Slog.w(TAG, "SyncNotedAppOp(int,String) unavailable: " + e);
+        }
+        return null;
     }
 
     @ProxyMethod("noteProxyOperation")

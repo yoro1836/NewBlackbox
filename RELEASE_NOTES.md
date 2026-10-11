@@ -1,5 +1,18 @@
 # Release Notes - NewBlackbox
 
+## GMS emulator compatibility (2026-09-19)
+
+- Added a native x86_64 build for emulator testing without ARM translation.
+- Show User 0 in GMS Manager before any virtual users have been created.
+- Report missing required Google packages and failed installation responses instead of success.
+- Never treat a host-installed package as installed in a virtual user when the package service is unavailable.
+- Retain the service provider connection so Android does not freeze the virtual server while foreground clients use its binders.
+- Install ContentProviders only in their declared process or when marked multiprocess.
+- Translate broadcast and application-restriction queries to the host Android user.
+- Cover Android 16's device-aware account permission check.
+
+Verification: Android 16 Google Play x86_64 emulator imports GMS, GSF, and Play Store; Play Store reaches its sign-in landing page. Account creation remains blocked by Google Play services 26.34.36 with `Only 0p apps are allowed to call this API.` This is not a claim of working Google login or complete GMS compatibility.
+
 ## Version: Latest Build (2026-01-31)
 
 ---

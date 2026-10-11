@@ -19,6 +19,12 @@ public class CreateUserExecutor implements Executor {
         FileUtils.mkdirs(BEnvironment.getDataFilesDir(packageName, userId));
         FileUtils.mkdirs(BEnvironment.getDataDatabasesDir(packageName, userId));
         FileUtils.mkdirs(BEnvironment.getDeDataDir(packageName, userId));
+        // External storage: the system mkdirs rejects the host identity, so the
+        // virtual targets must already exist for redirected File I/O to land.
+        FileUtils.mkdirs(BEnvironment.getExternalDataDir(packageName, userId));
+        FileUtils.mkdirs(BEnvironment.getExternalDataFilesDir(packageName, userId));
+        FileUtils.mkdirs(BEnvironment.getExternalDataCacheDir(packageName, userId));
+        FileUtils.mkdirs(BEnvironment.getExternalObbDir(packageName, userId));
 
 
 

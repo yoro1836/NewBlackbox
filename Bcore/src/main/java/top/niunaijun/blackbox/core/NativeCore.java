@@ -34,6 +34,10 @@ public class NativeCore {
 
     public static native void hideXposed();
 
+    public static native void setSpoofProp(String key, String value);
+
+    public static native void clearSpoofProps();
+
     public static native boolean disableHiddenApi();
     
     public static native boolean disableResourceLoading();
@@ -42,6 +46,10 @@ public class NativeCore {
     @Keep
     public static int getCallingUid(int origCallingUid) {
         try {
+            // Local Binder calls belong to this process, not the app that launched it.
+            if (android.os.Binder.getCallingPid() == Process.myPid()) {
+                return Process.myUid();
+            }
             
             if (origCallingUid > 0 && origCallingUid < Process.FIRST_APPLICATION_UID)
                 return origCallingUid;
@@ -50,7 +58,14 @@ public class NativeCore {
                 return origCallingUid;
 
             if (origCallingUid == BlackBoxCore.getHostUid()) {
-                
+                // AttributionSource validates its source uid against the real binder
+                // caller. Virtual callers send the host uid there, so answering with a
+                // virtual uid made every cross-virtual-app provider call throw
+                // "Calling uid X doesn't match source uid Y".
+                if (isInAttributionSourceCheck()) {
+                    return origCallingUid;
+                }
+
                 String appPackageName = BlackBoxCore.getAppPackageName();
                 if (appPackageName != null && appPackageName.equals("com.google.android.gms")){
                     
@@ -63,6 +78,24 @@ public class NativeCore {
                 }
                 
                 
+                // Binder caller checks in the GMS broker must see the
+                // virtual caller identity, not the host process identity.
+                try {
+                    int callingPid = android.os.Binder.getCallingPid();
+                    int callerBUid = top.niunaijun.blackbox.core.system.BProcessManagerService
+                            .get().getBUidByPidOrPackageName(callingPid, null);
+                    if (callerBUid <= 0) {
+                        // Only the server holds the pid table; virtual processes must ask it.
+                        // Without this every caller looked like the app that started this process.
+                        callerBUid = top.niunaijun.blackbox.fake.frameworks.BActivityManager
+                                .get().getBUidByPid(callingPid);
+                    }
+                    if (callerBUid > 0 && callerBUid < Process.LAST_APPLICATION_UID) {
+                        return callerBUid;
+                    }
+                } catch (Exception e) {
+                    Log.w(TAG, "Error getting caller BUid by pid: " + e.getMessage());
+                }
                 try {
                     int callingBUid = BlackBoxCore.getCallingBUid();
                     if (callingBUid > 0 && callingBUid < Process.LAST_APPLICATION_UID) {
@@ -102,6 +135,15 @@ public class NativeCore {
             
             return Process.myUid();
         }
+    }
+
+    private static boolean isInAttributionSourceCheck() {
+        for (StackTraceElement element : new Throwable().getStackTrace()) {
+            if ("android.content.AttributionSource".equals(element.getClassName())) {
+                return true;
+            }
+        }
+        return false;
     }
 
     @Keep

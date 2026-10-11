@@ -29,7 +29,9 @@ public class NativeUtils {
                 return;
             }
 
-            findAndCopyNativeLib(zipfile, "armeabi", nativeLibDir);
+            if ("armeabi-v7a".equals(Build.CPU_ABI)) {
+                findAndCopyNativeLib(zipfile, "armeabi", nativeLibDir);
+            }
         } finally {
             Log.d(TAG, "Done! +" + (System.currentTimeMillis() - startTime) + "ms");
         }

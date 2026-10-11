@@ -33,6 +33,39 @@ public class IDevicePolicyManagerProxy extends BinderInvocationStub {
         return false;
     }
 
+    /**
+     * The host DevicePolicyManagerService throws SecurityException for most queries made by a
+     * non-admin caller (getFactoryResetProtectionPolicy, ...). GMS runs these from
+     * IntentOperations, and one uncaught exception killed the whole virtual GMS process. The
+     * sandbox has no device policy, so answer with the neutral value for the return type.
+     */
+    @Override
+    public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
+        try {
+            return super.invoke(proxy, method, args);
+        } catch (SecurityException e) {
+            Class<?> type = method.getReturnType();
+            if (type == void.class) {
+                return null;
+            } else if (type == boolean.class) {
+                return false;
+            } else if (type == int.class) {
+                return 0;
+            } else if (type == long.class) {
+                return 0L;
+            } else if (type == float.class) {
+                return 0f;
+            } else if (type == double.class) {
+                return 0d;
+            } else if (type.isArray()) {
+                return java.lang.reflect.Array.newInstance(type.getComponentType(), 0);
+            } else if (java.util.List.class.isAssignableFrom(type)) {
+                return new java.util.ArrayList<>();
+            }
+            return null;
+        }
+    }
+
     @ProxyMethod("getStorageEncryptionStatus")
     public static class GetStorageEncryptionStatus extends MethodHook {
 
@@ -75,6 +108,25 @@ public class IDevicePolicyManagerProxy extends BinderInvocationStub {
         @Override
         protected Object hook(Object who, Method method, Object[] args) throws Throwable {
             return true;
+        }
+    }
+
+    // The host DevicePolicyManagerService requires the caller to be the real
+    // com.google.android.gms uid, so our uid is rejected and the account picker
+    // crashes in onResume. No account type is management-disabled in the sandbox.
+    @ProxyMethod("getAccountTypesWithManagementDisabled")
+    public static class GetAccountTypesWithManagementDisabled extends MethodHook {
+        @Override
+        protected Object hook(Object who, Method method, Object[] args) throws Throwable {
+            return new String[0];
+        }
+    }
+
+    @ProxyMethod("getAccountTypesWithManagementDisabledAsUser")
+    public static class GetAccountTypesWithManagementDisabledAsUser extends MethodHook {
+        @Override
+        protected Object hook(Object who, Method method, Object[] args) throws Throwable {
+            return new String[0];
         }
     }
 }

@@ -27,6 +27,7 @@ import top.niunaijun.blackbox.entity.UnbindRecord;
 import top.niunaijun.blackbox.entity.am.RunningServiceInfo;
 import top.niunaijun.blackbox.proxy.ProxyManifest;
 import top.niunaijun.blackbox.proxy.record.ProxyServiceRecord;
+import top.niunaijun.blackbox.utils.compat.IntentCompat;
 
 
 @SuppressLint("NewApi")
@@ -39,10 +40,15 @@ public class ActiveServices {
 
     public void startService(Intent intent, String resolvedType, boolean requireForeground, int userId) {
         ResolveInfo resolveInfo = resolveService(intent, resolvedType, userId);
-        if (resolveInfo == null)
+        if (resolveInfo == null) {
+            android.util.Log.w(TAG, "startService dropped, unresolvable: " + (intent != null ? intent.toString() : "null") + " user=" + userId);
             return;
-
+        }
         ServiceInfo serviceInfo = resolveInfo.serviceInfo;
+        android.util.Log.d(TAG, "startService: " + serviceInfo.packageName + "/" + serviceInfo.name
+                + " action=" + (intent != null ? intent.getAction() : "null")
+                + " categories=" + (intent != null ? intent.getCategories() : "null")
+                + " user=" + userId);
         ProcessRecord processRecord = BProcessManagerService.get().startProcessLocked(serviceInfo.packageName, serviceInfo.processName, userId, -1, Binder.getCallingPid());
         if (processRecord == null) {
             throw new RuntimeException("Unable to create " + serviceInfo.name);
@@ -52,16 +58,16 @@ public class ActiveServices {
 
         runningServiceRecord.getAndIncrementStartId();
         final Intent stubServiceIntent = createStubServiceIntent(intent, serviceInfo, processRecord, runningServiceRecord);
-        new Thread(new Runnable() {
-            @Override
-            public void run() {
-                try {
-                    BlackBoxCore.getContext().startService(stubServiceIntent);
-                } catch (Throwable e) {
-                    e.printStackTrace();
-                }
-            }
-        }).start();
+        android.util.Log.d(TAG, "startService dispatch stub=" + stubServiceIntent.getComponent()
+                + " stubAction=" + stubServiceIntent.getAction() + " startId=" + runningServiceRecord.mStartId.get());
+        // Dispatch inline on the caller thread: a fire-and-forget worker hides
+        // delivery failures and breaks start ordering. Host startService returns
+        // fast (process boot is async), so blocking here is negligible.
+        try {
+            BlackBoxCore.getContext().startService(stubServiceIntent);
+        } catch (Throwable e) {
+            android.util.Log.e(TAG, "startService dispatch failed: " + serviceInfo.name, e);
+        }
     }
 
     public int stopService(Intent intent, String resolvedType, int userId) {
@@ -200,6 +206,7 @@ public class ActiveServices {
         stub.setComponent(stubComp);
         stub.setAction(UUID.randomUUID().toString());
         ProxyServiceRecord.saveStub(stub, targetIntent, serviceInfo, runningServiceRecord, processRecord.userId, runningServiceRecord.mStartId.get());
+        IntentCompat.collectExtraIntentKeys(stub);
         return stub;
     }
 

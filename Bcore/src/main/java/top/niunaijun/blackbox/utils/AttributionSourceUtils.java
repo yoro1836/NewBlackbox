@@ -10,13 +10,23 @@ public class AttributionSourceUtils {
 
     
     public static void fixAttributionSourceInArgs(Object[] args) {
+        fixAttributionSourceInArgs(args, null);
+    }
+
+    /**
+     * @param callerPackage package to report as the caller; null means the host package.
+     *                      Calls into virtual providers must carry the real virtual caller,
+     *                      or the provider cannot tell Play Store from any other app (GMS
+     *                      withheld android_id: "Package top.niunaijun.blackbox is not approved").
+     */
+    public static void fixAttributionSourceInArgs(Object[] args, String callerPackage) {
         if (args == null) return;
-        
+
         for (int i = 0; i < args.length; i++) {
             Object arg = args[i];
             if (arg != null && arg.getClass().getName().contains("AttributionSource")) {
                 try {
-                    fixAttributionSourceUid(arg);
+                    fixAttributionSourceUid(arg, callerPackage);
                     Slog.d(TAG, "Fixed AttributionSource UID in method arguments");
                 } catch (Exception e) {
                     Slog.w(TAG, "Failed to fix AttributionSource in args: " + e.getMessage());
@@ -39,6 +49,11 @@ public class AttributionSourceUtils {
 
     
     public static void fixAttributionSourceUid(Object attributionSource) {
+        fixAttributionSourceUid(attributionSource, null);
+    }
+
+    public static void fixAttributionSourceUid(Object attributionSource, String callerPackage) {
+        final String pkgToReport = callerPackage != null ? callerPackage : BlackBoxCore.getHostPkg();
         try {
             if (attributionSource == null) return;
             
@@ -76,12 +91,54 @@ public class AttributionSourceUtils {
                 try {
                     java.lang.reflect.Field packageField = attributionSourceClass.getDeclaredField(fieldName);
                     packageField.setAccessible(true);
-                    packageField.set(attributionSource, BlackBoxCore.getHostPkg());
+                    packageField.set(attributionSource, pkgToReport);
                     Slog.d(TAG, "Fixed AttributionSource package name via field: " + fieldName);
                     break;
                 } catch (NoSuchFieldException e) {
                     
                 }
+            }
+            // Android S+ keeps uid/package inside AttributionSourceState
+            // (mAttributionSourceState), not on AttributionSource itself.
+            // Without this every provider call fails with
+            // "Calling uid X doesn't match source uid Y".
+            try {
+                java.lang.reflect.Field stateField =
+                        attributionSourceClass.getDeclaredField("mAttributionSourceState");
+                stateField.setAccessible(true);
+                Object state = stateField.get(attributionSource);
+                if (state != null) {
+                    Class<?> stateClass = state.getClass();
+                    boolean uidFixed = false;
+                    String[] stateUidNames = {"uid", "mUid"};
+                    for (String fieldName : stateUidNames) {
+                        try {
+                            java.lang.reflect.Field uidField = stateClass.getDeclaredField(fieldName);
+                            uidField.setAccessible(true);
+                            uidField.set(state, BlackBoxCore.getHostUid());
+                            Slog.d(TAG, "Fixed AttributionSourceState UID via field: " + fieldName);
+                            uidFixed = true;
+                            break;
+                        } catch (NoSuchFieldException e) {
+                        }
+                    }
+                    String[] statePkgNames = {"packageName", "mPackageName"};
+                    for (String fieldName : statePkgNames) {
+                        try {
+                            java.lang.reflect.Field pkgField = stateClass.getDeclaredField(fieldName);
+                            pkgField.setAccessible(true);
+                            pkgField.set(state, pkgToReport);
+                            Slog.d(TAG, "Fixed AttributionSourceState package via field: " + fieldName);
+                            break;
+                        } catch (NoSuchFieldException e) {
+                        }
+                    }
+                    if (!uidFixed) {
+                        Slog.w(TAG, "AttributionSourceState UID field not found on "
+                                + stateClass.getName());
+                    }
+                }
+            } catch (NoSuchFieldException e) {
             }
             
         } catch (Exception e) {

@@ -19,6 +19,7 @@ import top.niunaijun.blackbox.BlackBoxCore;
 import top.niunaijun.blackbox.core.system.BProcessManagerService;
 import top.niunaijun.blackbox.core.system.ISystemService;
 import top.niunaijun.blackbox.core.system.ProcessRecord;
+import top.niunaijun.blackbox.core.system.user.BUserHandle;
 import top.niunaijun.blackbox.core.system.pm.BPackageManagerService;
 import top.niunaijun.blackbox.entity.AppConfig;
 import top.niunaijun.blackbox.entity.UnbindRecord;
@@ -166,13 +167,25 @@ public class BActivityManagerService extends IBActivityManagerService.Stub imple
         for (ActivityManager.RunningAppProcessInfo runningProcess : runningAppProcesses) {
             runningProcessMap.put(runningProcess.pid, runningProcess);
         }
-        List<ProcessRecord> packageProcessAsUser = BProcessManagerService.get().getPackageProcessAsUser(callerPackage, userId);
+        // Google apps hold the privileges that make the real getRunningAppProcesses show every
+        // app. Play Games checks that the calling game has a live process; with the caller-only
+        // view it never saw the game and reported "No active processes of the calling game".
+        final boolean seesAll = callerPackage != null
+                && top.niunaijun.blackbox.core.GmsCore.isGoogleAppOrService(callerPackage);
+        List<ProcessRecord> packageProcessAsUser = seesAll
+                ? BProcessManagerService.get().getProcessRecordsForUser(userId)
+                : BProcessManagerService.get().getPackageProcessAsUser(callerPackage, userId);
 
         RunningAppProcessInfo appProcessInfo = new RunningAppProcessInfo();
         for (ProcessRecord processRecord : packageProcessAsUser) {
             ActivityManager.RunningAppProcessInfo runningAppProcessInfo = runningProcessMap.get(processRecord.pid);
             if (runningAppProcessInfo != null) {
                 runningAppProcessInfo.processName = processRecord.processName;
+                if (seesAll) {
+                    // The system fills in the host package; report the virtual one.
+                    runningAppProcessInfo.pkgList = new String[]{processRecord.getPackageName()};
+                    runningAppProcessInfo.uid = BUserHandle.getAppId(processRecord.buid);
+                }
                 appProcessInfo.mAppProcessInfoList.add(runningAppProcessInfo);
             }
         }
@@ -261,6 +274,12 @@ public class BActivityManagerService extends IBActivityManagerService.Stub imple
             }
         }
         return -1;
+    }
+
+    @Override
+    public int getBUidByPid(int pid) throws RemoteException {
+        ProcessRecord record = BProcessManagerService.get().findProcessByPid(pid);
+        return record == null ? -1 : BUserHandle.getAppId(record.buid);
     }
 
     @Override

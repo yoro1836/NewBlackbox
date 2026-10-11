@@ -24,6 +24,12 @@ public class ProxyService extends Service {
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
+        if (intent == null) {
+            // Redelivery after the process was killed carries no intent; there is nothing to
+            // dispatch. Throwing here crashed the virtual process again on every restart.
+            stopSelf(startId);
+            return START_NOT_STICKY;
+        }
         AppServiceDispatcher.get().onStartCommand(intent, flags, startId);
         return START_NOT_STICKY;
     }

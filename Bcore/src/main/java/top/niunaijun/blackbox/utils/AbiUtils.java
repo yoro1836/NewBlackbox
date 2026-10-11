@@ -1,5 +1,7 @@
 package top.niunaijun.blackbox.utils;
 
+import android.os.Build;
+
 import java.io.File;
 import java.util.Enumeration;
 import java.util.HashMap;
@@ -26,6 +28,9 @@ public class AbiUtils {
             return true;
         }
 
+        if (Build.CPU_ABI.startsWith("x86")) {
+            return abiUtils.mLibs.contains(BlackBoxCore.is64Bit() ? "x86_64" : "x86");
+        }
         if (BlackBoxCore.is64Bit()) {
             return abiUtils.is64Bit();
         } else {
@@ -41,12 +46,11 @@ public class AbiUtils {
             while (entries.hasMoreElements()) {
                 ZipEntry zipEntry = entries.nextElement();
                 String name = zipEntry.getName();
-                if (name.startsWith("lib/arm64-v8a")) {
-                    mLibs.add("arm64-v8a");
-                } else if (name.startsWith("lib/armeabi")) {
-                    mLibs.add("armeabi");
-                } else if (name.startsWith("lib/armeabi-v7a")) {
-                    mLibs.add("armeabi-v7a");
+                if (name.startsWith("lib/") && name.endsWith(".so")) {
+                    int abiEnd = name.indexOf('/', 4);
+                    if (abiEnd > 4) {
+                        mLibs.add(name.substring(4, abiEnd));
+                    }
                 }
             }
         } catch (Exception e) {

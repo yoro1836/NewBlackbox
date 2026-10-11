@@ -2,7 +2,13 @@ LOCAL_PATH := $(call my-dir)
 
 include $(CLEAR_VARS)
 LOCAL_MODULE := libdobby
-LOCAL_SRC_FILES := Dobby/$(TARGET_ARCH_ABI)/libdobby.a
+DOBBY_ARCHIVE := Dobby/$(TARGET_ARCH_ABI)/libdobby.a
+ifeq ($(TARGET_ARCH_ABI),x86_64)
+ifneq ($(strip $(DOBBY_X86_64_LIB)),)
+DOBBY_ARCHIVE := $(DOBBY_X86_64_LIB)
+endif
+endif
+LOCAL_SRC_FILES := $(DOBBY_ARCHIVE)
 include $(PREBUILT_STATIC_LIBRARY)
 
 include $(CLEAR_VARS)
@@ -45,10 +51,10 @@ Hook/BaseHook.cpp \
 JniHook/JniHook.cpp
 
 LOCAL_C_INCLUDES += $(LOCAL_PATH)
-LOCAL_CFLAGS += -Wno-error=format-security -fvisibility=hidden -ffunction-sections -fdata-sections -w -std=c++17
-LOCAL_CPPFLAGS += -Wno-error=format-security -fvisibility=hidden -ffunction-sections -fdata-sections -w -Werror -fms-extensions
 LOCAL_LDFLAGS += -Wl,--gc-sections,--strip-all,-z,max-page-size=16384
+ifneq (,$(filter armeabi-v7a,$(TARGET_ARCH_ABI)))
 LOCAL_ARM_MODE := arm
+endif
 
 LOCAL_CPP_FEATURES := exceptions
 LOCAL_STATIC_LIBRARIES := libdobby xdl

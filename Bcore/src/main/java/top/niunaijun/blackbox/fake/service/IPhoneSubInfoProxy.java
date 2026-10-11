@@ -42,6 +42,33 @@ public class IPhoneSubInfoProxy extends ClassInvocationStub {
         return false;
     }
 
+    // Virtual users do not own the host SIM or its persistent identifier.
+    @ProxyMethod("getIccSerialNumberForSubscriber")
+    public static class GetIccSerialNumberForSubscriber extends MethodHook {
+        @Override
+        protected Object hook(Object who, Method method, Object[] args) {
+            return null;
+        }
+    }
+
+    @ProxyMethod("getIccSerialNumber")
+    public static class GetIccSerialNumber extends GetIccSerialNumberForSubscriber {
+    }
+
+    // IMSI is a privileged persistent identifier; the virtual user has no SIM.
+    @ProxyMethod("getSubscriberIdForSubscriber")
+    public static class GetSubscriberIdForSubscriber extends MethodHook {
+        @Override
+        protected Object hook(Object who, Method method, Object[] args) {
+            return null;
+        }
+    }
+
+    @ProxyMethod("getSubscriberId")
+    public static class GetSubscriberId extends GetSubscriberIdForSubscriber {
+    }
+
+
 
     @ProxyMethod("getLine1NumberForSubscriber")
     public static class getLine1NumberForSubscriber extends MethodHook {

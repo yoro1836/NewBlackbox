@@ -38,12 +38,12 @@ public class AndroidIdProxy extends ClassInvocationStub {
                 Object result = method.invoke(who, args);
                 if (result == null || "0".equals(result.toString()) || "".equals(result.toString())) {
                     Slog.w(TAG, "AndroidId: Invalid Android ID detected, returning mock ID");
-                    return generateMockAndroidId();
+                    return getStableAndroidId();
                 }
                 return result;
             } catch (Exception e) {
                 Slog.w(TAG, "AndroidId: GetAndroidId error, returning mock ID", e);
-                return generateMockAndroidId();
+                return getStableAndroidId();
             }
         }
     }
@@ -63,7 +63,7 @@ public class AndroidIdProxy extends ClassInvocationStub {
                         key.contains("secure_id") || key.contains("device_id")) {
                         if (result == null || "0".equals(result.toString()) || "".equals(result.toString())) {
                             Slog.w(TAG, "AndroidId: Invalid Android ID string detected, returning mock ID");
-                            return generateMockAndroidId();
+                            return getStableAndroidId();
                         }
                     }
                 }
@@ -90,7 +90,7 @@ public class AndroidIdProxy extends ClassInvocationStub {
                         key.contains("secure_id") || key.contains("device_id")) {
                         if (result == null || ((Number) result).longValue() == 0) {
                             Slog.w(TAG, "AndroidId: Invalid Android ID long detected, returning mock ID");
-                            return generateMockAndroidIdLong();
+                            return getStableAndroidIdLong();
                         }
                     }
                 }
@@ -117,7 +117,7 @@ public class AndroidIdProxy extends ClassInvocationStub {
                         key.contains("secure_id") || key.contains("device_id")) {
                         if (result == null || "0".equals(result.toString()) || "".equals(result.toString())) {
                             Slog.w(TAG, "AndroidId: Invalid Android ID get detected, returning mock ID");
-                            return generateMockAndroidId();
+                            return getStableAndroidId();
                         }
                     }
                 }
@@ -144,7 +144,7 @@ public class AndroidIdProxy extends ClassInvocationStub {
                         key.contains("secure_id") || key.contains("device_id")) {
                         if (result == null || "0".equals(result.toString()) || "".equals(result.toString())) {
                             Slog.w(TAG, "AndroidId: Invalid Android ID read detected, returning mock ID");
-                            return generateMockAndroidId();
+                            return getStableAndroidId();
                         }
                     }
                 }
@@ -156,9 +156,103 @@ public class AndroidIdProxy extends ClassInvocationStub {
         }
     }
 
-    
+    private static final Object sIdLock = new Object();
+    private static final java.util.Map<String, String> sIdCache = new java.util.HashMap<>();
+
+    /**
+     * Stable mock ID, persisted per virtual user and package. A fresh random
+     * value on every query breaks apps that bind sessions to the device ID
+     * (games log out on every launch).
+     */
+    private static String getStableAndroidId() {
+        String key;
+        try {
+            key = top.niunaijun.blackbox.app.BActivityThread.getUserId()
+                    + "_" + top.niunaijun.blackbox.app.BActivityThread.getAppPackageName();
+        } catch (Throwable t) {
+            key = "0_unknown";
+        }
+        synchronized (sIdLock) {
+            String cached = sIdCache.get(key);
+            if (cached != null) {
+                return cached;
+            }
+            String persisted = readPersistedId(key);
+            if (persisted != null) {
+                sIdCache.put(key, persisted);
+                return persisted;
+            }
+            String fresh = generateMockAndroidId();
+            sIdCache.put(key, fresh);
+            persistId(key, fresh);
+            return fresh;
+        }
+    }
+
+    private static Long getStableAndroidIdLong() {
+        try {
+            return Long.parseUnsignedLong(getStableAndroidId(), 16);
+        } catch (Throwable t) {
+            return 0L;
+        }
+    }
+
+    private static java.io.File idFile(String key) {
+        String safe = key.replaceAll("[^A-Za-z0-9_.-]", "_");
+        return new java.io.File(
+                top.niunaijun.blackbox.core.env.BEnvironment.getSystemDir(),
+                "android_id/" + safe);
+    }
+
+    private static String readPersistedId(String key) {
+        java.io.File file = idFile(key);
+        if (!file.isFile()) {
+            return null;
+        }
+        try {
+            byte[] bytes = new byte[(int) Math.min(file.length(), 64)];
+            java.io.FileInputStream in = new java.io.FileInputStream(file);
+            try {
+                int read = in.read(bytes);
+                if (read > 0) {
+                    String value = new String(bytes, 0, read, "UTF-8").trim();
+                    if (value.matches("[0-9A-Fa-f]{16}")) {
+                        return value.toUpperCase();
+                    }
+                }
+            } finally {
+                try {
+                    in.close();
+                } catch (java.io.IOException ignored) {
+                }
+            }
+        } catch (Throwable ignored) {
+        }
+        return null;
+    }
+
+    private static void persistId(String key, String value) {
+        try {
+            java.io.File file = idFile(key);
+            java.io.File parent = file.getParentFile();
+            if (parent != null) {
+                //noinspection ResultOfMethodCallIgnored
+                parent.mkdirs();
+            }
+            java.io.FileWriter writer = new java.io.FileWriter(file, false);
+            try {
+                writer.write(value);
+            } finally {
+                try {
+                    writer.close();
+                } catch (java.io.IOException ignored) {
+                }
+            }
+        } catch (Throwable ignored) {
+        }
+    }
+
     private static String generateMockAndroidId() {
-        
         StringBuilder sb = new StringBuilder();
         for (int i = 0; i < 16; i++) {
             sb.append(Integer.toHexString((int) (Math.random() * 16)));
@@ -169,7 +263,6 @@ public class AndroidIdProxy extends ClassInvocationStub {
     }
 
     private static Long generateMockAndroidIdLong() {
-        
         long mockId = (long) (Math.random() * Long.MAX_VALUE);
         Slog.d(TAG, "AndroidId: Generated mock Android ID long: " + mockId);
         return mockId;

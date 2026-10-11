@@ -22,3 +22,11 @@
 .cxx
 local.properties
 /app/release/
+**/build/
+.classpath
+.project
+.settings/
+/.omp/
+/gms-work/
+/app-*.apk
+/omp-session-*.html

@@ -175,7 +175,6 @@ public class BAccountManager extends BlackManager<IBAccountManagerService> {
             e.printStackTrace();
         }
     }
-
     public void setUserData(Account account, String key, String value) {
         try {
             getService().setUserData(account, key, value, BActivityThread.getUserId());

@@ -32,6 +32,22 @@ public class ProxyContentProvider extends ContentProvider {
 
             Bundle bundle = new Bundle();
             BundleCompat.putBinder(bundle, "_Black_|_client_", BlackBoxCore.currentActivityThread());
+            // The server's pid table is keyed by the real pid; report it instead of
+            // letting the server guess it from the stub name afterwards.
+            bundle.putInt("_Black_|_pid_", android.os.Process.myPid());
+            return bundle;
+        }
+        if (method.equals("_Black_|_who_are_you_")) {
+            // Read-only identity report for orphan re-adoption after a
+            // server restart. NEVER re-initializes the process here.
+            AppConfig appConfig = BActivityThread.getAppConfig();
+            if (appConfig == null) {
+                return null;
+            }
+            Bundle bundle = new Bundle();
+            bundle.putParcelable(AppConfig.KEY, appConfig);
+            BundleCompat.putBinder(bundle, "_Black_|_client_", BlackBoxCore.currentActivityThread());
+            bundle.putInt("_Black_|_pid_", android.os.Process.myPid());
             return bundle;
         }
         return super.call(method, arg, extras);

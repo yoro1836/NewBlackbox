@@ -44,13 +44,51 @@ public class ITelephonyManagerProxy extends BinderInvocationStub {
         return false;
     }
 
+    /**
+     * Stable, well-formed fake identifiers. Google's checkin rejects anything that is not
+     * a 15-digit Luhn IMEI ("invalid hardware identifier ... is not a valid IMEI"), which
+     * made every add-account attempt fail with a server communication error.
+     */
+    private static int slotOf(Object[] args) {
+        return args != null && args.length > 0 && args[0] instanceof Integer ? (Integer) args[0] : 0;
+    }
+
+    private static String digitsOf(String seed, int count) {
+        String hex = Md5Utils.md5(seed);
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; sb.length() < count; i++) {
+            sb.append((char) ('0' + Character.digit(hex.charAt(i % hex.length()), 16) % 10));
+        }
+        return sb.toString();
+    }
+
+    private static String fakeImei(int slot) {
+        // 35 = common GSMA reporting body prefix; remaining 12 digits derived from the host pkg.
+        String body = "35" + digitsOf(BlackBoxCore.getHostPkg() + ":imei:" + slot, 12);
+        int sum = 0;
+        for (int i = 0; i < body.length(); i++) {
+            int d = body.charAt(i) - '0';
+            if (i % 2 == 1) {
+                d *= 2;
+                if (d > 9) {
+                    d -= 9;
+                }
+            }
+            sum += d;
+        }
+        return body + ((10 - sum % 10) % 10);
+    }
+
+    private static String fakeImsi() {
+        // MCC 450 (KR) + MNC 05 + 10 derived digits = 15 digits.
+        return "45005" + digitsOf(BlackBoxCore.getHostPkg() + ":imsi", 10);
+    }
+
     @ProxyMethod("getDeviceId")
     public static class GetDeviceId extends MethodHook {
         @Override
         protected Object hook(Object who, Method method, Object[] args) throws Throwable {
-
-
-            return Md5Utils.md5(BlackBoxCore.getHostPkg());
+            return fakeImei(0);
         }
     }
 
@@ -58,19 +96,16 @@ public class ITelephonyManagerProxy extends BinderInvocationStub {
     public static class getImeiForSlot extends MethodHook {
         @Override
         protected Object hook(Object who, Method method, Object[] args) throws Throwable {
-
-
-            return Md5Utils.md5(BlackBoxCore.getHostPkg());
+            return fakeImei(slotOf(args));
         }
     }
 
+    // GSM-only device: like real hardware, there is no MEID.
     @ProxyMethod("getMeidForSlot")
     public static class GetMeidForSlot extends MethodHook {
         @Override
         protected Object hook(Object who, Method method, Object[] args) throws Throwable {
-
-
-            return Md5Utils.md5(BlackBoxCore.getHostPkg());
+            return null;
         }
     }
 
@@ -95,7 +130,7 @@ public class ITelephonyManagerProxy extends BinderInvocationStub {
     public static class GetSubscriberId extends MethodHook {
         @Override
         protected Object hook(Object who, Method method, Object[] args) throws Throwable {
-            return Md5Utils.md5(BlackBoxCore.getHostPkg());
+            return fakeImsi();
         }
     }
 
@@ -103,7 +138,7 @@ public class ITelephonyManagerProxy extends BinderInvocationStub {
     public static class GetDeviceIdWithFeature extends MethodHook {
         @Override
         protected Object hook(Object who, Method method, Object[] args) throws Throwable {
-            return Md5Utils.md5(BlackBoxCore.getHostPkg());
+            return fakeImei(0);
         }
     }
 

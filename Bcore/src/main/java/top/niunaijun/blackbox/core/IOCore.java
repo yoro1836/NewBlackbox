@@ -117,6 +117,9 @@ public class IOCore {
 
             rule.put(String.format("/data/data/%s", packageName), packageInfo.dataDir);
             rule.put(String.format("/data/user/%d/%s", systemUserId, packageName), packageInfo.dataDir);
+            rule.put(String.format("/data/user_de/%d/%s", systemUserId, packageName),
+                    top.niunaijun.blackbox.core.env.BEnvironment
+                            .getDeDataDir(packageName, BlackBoxCore.getUserId()).getAbsolutePath());
 
             
             File profilesRoot = new File(BEnvironment.getVirtualRoot(), "profiles");
@@ -131,16 +134,25 @@ public class IOCore {
             rule.put(String.format("/data/misc/profiles/cur/%d/%s", BlackBoxCore.getUserId(), packageName), profilesCurDir.getAbsolutePath());
             rule.put(String.format("/data/misc/profiles/ref/%d/%s", BlackBoxCore.getUserId(), packageName), profilesRefDir.getAbsolutePath());
 
-            if (BlackBoxCore.getContext().getExternalCacheDir() != null && context.getExternalCacheDir() != null) {
-                File external = BEnvironment.getExternalUserDir(BlackBoxCore.getUserId());
+            // Unconditional: the old getExternalCacheDir() gate was false in game
+            // processes (system ensure rejects the host identity), which skipped
+            // both the rules and the directories. Pure-Java File ops need no IPC.
+            File external = BEnvironment.getExternalUserDir(BlackBoxCore.getUserId());
+            // Covers installs predating the installer-side mkdirs.
+            top.niunaijun.blackbox.utils.FileUtils.mkdirs(
+                    BEnvironment.getExternalDataDir(packageName, BlackBoxCore.getUserId()));
+            top.niunaijun.blackbox.utils.FileUtils.mkdirs(
+                    BEnvironment.getExternalDataFilesDir(packageName, BlackBoxCore.getUserId()));
+            top.niunaijun.blackbox.utils.FileUtils.mkdirs(
+                    BEnvironment.getExternalDataCacheDir(packageName, BlackBoxCore.getUserId()));
+            top.niunaijun.blackbox.utils.FileUtils.mkdirs(
+                    BEnvironment.getExternalObbDir(packageName, BlackBoxCore.getUserId()));
 
-                
-                rule.put("/sdcard", external.getAbsolutePath());
-                rule.put(String.format("/storage/emulated/%d", systemUserId), external.getAbsolutePath());
+            rule.put("/sdcard", external.getAbsolutePath());
+            rule.put(String.format("/storage/emulated/%d", systemUserId), external.getAbsolutePath());
 
-                blackRule.add("/sdcard/Pictures");
-                blackRule.add(String.format("/storage/emulated/%d/Pictures", systemUserId));
-            }
+            blackRule.add("/sdcard/Pictures");
+            blackRule.add(String.format("/storage/emulated/%d/Pictures", systemUserId));
             if (BlackBoxCore.get().isHideRoot()) {
                 hideRoot(rule);
             }

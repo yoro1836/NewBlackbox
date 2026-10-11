@@ -65,7 +65,13 @@ public class OsStub extends ClassInvocationStub {
         @Override
         protected Object hook(Object who, Method method, Object[] args) throws Throwable {
             int callUid = (int) method.invoke(who, args);
-            return getFakeUid(callUid);
+            // Return the real UID. Spoofing the virtual UID here breaks
+            // Chromium networking: permission checks receive pid/uid pairs
+            // that match no installed package, so DNS and loads fail
+            // instantly (ERR_CACHE_MISS) with zero traffic. Binder and
+            // native code already observe the real UID, so this also keeps
+            // Java-layer identity consistent with the kernel.
+            return callUid;
         }
     }
 

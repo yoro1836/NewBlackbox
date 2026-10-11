@@ -15,8 +15,8 @@ class GmsRepository {
     fun getGmsInstalledList(mInstalledLiveData: MutableLiveData<List<GmsBean>>) {
         val userList = arrayListOf<GmsBean>()
 
-        BlackBoxCore.get().users.forEach {
-            val userId = it.id
+        val userIds = BlackBoxCore.get().users.map { it.id }.ifEmpty { listOf(0) }
+        userIds.forEach { userId ->
             val userName =
                 AppManager.mRemarkSharedPreferences.getString("Remark$userId", "User $userId") ?: ""
             val isInstalled = BlackBoxCore.get().isInstallGms(userId)
@@ -42,6 +42,7 @@ class GmsRepository {
         val bean = GmsInstallBean(userID,installResult.success,result)
         mUpdateInstalledLiveData.postValue(bean)
     }
+
 
     fun uninstallGms(
         userID: Int,

@@ -448,4 +448,41 @@ public class BActivityManager extends BlackManager<IBActivityManagerService> {
         }
         return -1;
     }
+
+    private static final long CALLER_UID_TTL_MS = 3000;
+    private static final long CALLER_UID_MISS_TTL_MS = 300;
+    private final java.util.concurrent.ConcurrentHashMap<Integer, long[]> mCallerUidCache =
+            new java.util.concurrent.ConcurrentHashMap<>();
+    private final ThreadLocal<Boolean> mInCallerLookup = new ThreadLocal<>();
+
+    /**
+     * Virtual uid of the virtual process behind a real binder caller pid, or -1.
+     * Only the server knows the pid table, so ask it (briefly cached) instead of
+     * treating every caller as the app that happened to start this process.
+     */
+    public int getBUidByPid(int pid) {
+        long now = android.os.SystemClock.uptimeMillis();
+        long[] cached = mCallerUidCache.get(pid);
+        if (cached != null && now < cached[1]) {
+            return (int) cached[0];
+        }
+        if (Boolean.TRUE.equals(mInCallerLookup.get())) {
+            return -1;
+        }
+        mInCallerLookup.set(Boolean.TRUE);
+        try {
+            IBActivityManagerService service = getService();
+            int buid = service == null ? -1 : service.getBUidByPid(pid);
+            mCallerUidCache.put(pid, new long[]{buid,
+                    now + (buid > 0 ? CALLER_UID_TTL_MS : CALLER_UID_MISS_TTL_MS)});
+            if (mCallerUidCache.size() > 256) {
+                mCallerUidCache.clear();
+            }
+            return buid;
+        } catch (Throwable e) {
+            return -1;
+        } finally {
+            mInCallerLookup.set(null);
+        }
+    }
 }

@@ -133,8 +133,8 @@ public class GmsProxy extends BinderInvocationStub {
                 Slog.d(TAG, "GmsProxy: Handling getToken call");
                 return method.invoke(who, args);
             } catch (Exception e) {
-                Slog.w(TAG, "GmsProxy: GetToken error, returning mock token", e);
-                return "mock_gms_token_" + System.currentTimeMillis();
+                Slog.w(TAG, "GmsProxy: GetToken unavailable", e);
+                return null;
             }
         }
     }

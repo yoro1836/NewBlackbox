@@ -68,6 +68,18 @@ public class BProcessManagerService implements ISystemService {
                         return app;
                     }
                 }
+                // The server may have restarted while stubs survived, leaving
+                // orphans that still own resources (e.g. the WebView data-dir
+                // lock). Re-adopt instead of starting a duplicate process.
+                app = adoptOrphanLocked(packageName, processName, userId);
+                if (app != null) {
+                    bProcess.put(processName, app);
+                    mPidsSelfLocked.add(app);
+                    synchronized (mProcessMap) {
+                        mProcessMap.put(buid, bProcess);
+                    }
+                    return app;
+                }
                 bpid = getUsingBPidL();
                 Slog.d(TAG, "init bUid = " + buid + ", bPid = " + bpid);
             }
@@ -92,7 +104,7 @@ public class BProcessManagerService implements ISystemService {
                 bProcess.remove(processName);
                 mPidsSelfLocked.remove(app);
                 app = null;
-            } else {
+            } else if (app.pid <= 0) {
                 app.pid = getPid(BlackBoxCore.getContext(), ProxyManifest.getProcessName(app.bpid));
             }
         }
@@ -114,6 +126,17 @@ public class BProcessManagerService implements ISystemService {
             return i;
         }
         return -1;
+    }
+    public java.util.List<ProcessRecord> getProcessRecordsForUser(int userId) {
+        synchronized (mProcessLock) {
+            java.util.List<ProcessRecord> out = new java.util.ArrayList<>();
+            for (ProcessRecord record : mPidsSelfLocked) {
+                if (record != null && record.userId == userId) {
+                    out.add(record);
+                }
+            }
+            return out;
+        }
     }
 
     public void restartAppProcess(String packageName, String processName, int userId) {
@@ -145,6 +168,99 @@ public class BProcessManagerService implements ISystemService {
         }
         return -1;
     }
+    /**
+     * Finds a live stub already running this virtual process (left orphaned by
+     * a server restart) and re-attaches it instead of starting a duplicate.
+     * Must hold {@link #mProcessLock}. Returns null when no orphan matches.
+     */
+    private ProcessRecord adoptOrphanLocked(String packageName, String processName, int userId) {
+        Set<Integer> live = getLiveBPids();
+        Slog.d(TAG, "Adopt scan for " + packageName + "/" + processName + ", live stubs=" + live);
+        for (int bpid : live) {
+            Bundle identity;
+            try {
+                // Non-null extras: matches the shape of the working
+                // init_process call (null extras trips the UID check).
+                Bundle query = new Bundle();
+                query.putString("package", packageName);
+                query.putString("process", processName);
+                query.putInt("userId", userId);
+                identity = ProviderCall.callSafely(
+                        ProxyManifest.getProxyAuthorities(bpid), "_Black_|_who_are_you_", null, query);
+            } catch (Throwable t) {
+                Slog.d(TAG, "Adopt probe p" + bpid + " threw: " + t);
+                continue;
+            }
+            if (identity == null) {
+                Slog.d(TAG, "Adopt probe p" + bpid + ": null reply");
+                continue;
+            }
+            try {
+                identity.setClassLoader(AppConfig.class.getClassLoader());
+                AppConfig config = identity.getParcelable(AppConfig.KEY);
+                Slog.d(TAG, "Adopt probe p" + bpid + ": "
+                        + (config == null ? "null-config"
+                                : config.packageName + "/" + config.processName + "/u" + config.userId));
+                if (config == null
+                        || !packageName.equals(config.packageName)
+                        || !processName.equals(config.processName)
+                        || userId != config.userId) {
+                    continue;
+                }
+                IBinder appThread = BundleCompat.getBinder(identity, "_Black_|_client_");
+                if (appThread == null || !appThread.isBinderAlive()) {
+                    continue;
+                }
+                ApplicationInfo info = BPackageManagerService.get()
+                        .getApplicationInfo(packageName, 0, userId);
+                if (info == null) {
+                    continue;
+                }
+                int appId = BPackageManagerService.get().getAppId(packageName);
+                ProcessRecord app = new ProcessRecord(info, processName);
+                app.uid = Process.myUid();
+                app.bpid = config.bpid;
+                app.buid = BUserHandle.getUid(userId, appId);
+                app.callingBUid = config.callingBUid;
+                app.userId = userId;
+                app.pid = identity.getInt("_Black_|_pid_", -1);
+                if (app.pid <= 0) {
+                    app.pid = getPid(BlackBoxCore.getContext(),
+                            ProxyManifest.getProcessName(app.bpid));
+                }
+                attachClientL(app, appThread);
+                if (app.bActivityThread == null) {
+                    continue;
+                }
+                createProc(app);
+                Slog.d(TAG, "Adopted orphan " + processName + " from stub p" + app.bpid);
+                return app;
+            } catch (Throwable ignored) {
+                // A dying stub may vanish mid-adoption; fall through to a fresh start.
+            }
+        }
+        return null;
+    }
+
+    private Set<Integer> getLiveBPids() {
+        Set<Integer> live = new HashSet<>();
+        try {
+            ActivityManager manager = (ActivityManager) BlackBoxCore.getContext()
+                    .getSystemService(Context.ACTIVITY_SERVICE);
+            List<ActivityManager.RunningAppProcessInfo> running = manager.getRunningAppProcesses();
+            if (running == null) {
+                return live;
+            }
+            for (ActivityManager.RunningAppProcessInfo info : running) {
+                int bpid = parseBPid(info.processName);
+                if (bpid >= 0) {
+                    live.add(bpid);
+                }
+            }
+        } catch (Throwable ignored) {
+        }
+        return live;
+    }
 
     private boolean initAppProcessL(ProcessRecord record) {
         Log.d(TAG, "initProcess: " + record.processName);
@@ -155,6 +271,10 @@ public class BProcessManagerService implements ISystemService {
         IBinder appThread = BundleCompat.getBinder(init, "_Black_|_client_");
         if (appThread == null || !appThread.isBinderAlive()) {
             return false;
+        }
+        int reportedPid = init.getInt("_Black_|_pid_", -1);
+        if (reportedPid > 0) {
+            record.pid = reportedPid;
         }
         attachClientL(record, appThread);
 

@@ -41,11 +41,30 @@ public class PackageManagerCompat {
         if (ps == null) {
             return null;
         }
+        // Backfill once for installs predating timestamp persistence:
+        // inherit the host lineage so reinstall detection stays consistent.
+        if (ps.firstInstallTime == 0) {
+            try {
+                android.content.pm.PackageInfo host =
+                        BlackBoxCore.getContext().getPackageManager()
+                                .getPackageInfo(ps.pkg.packageName, 0);
+                ps.firstInstallTime = host.firstInstallTime;
+                ps.lastUpdateTime = host.lastUpdateTime;
+            } catch (Throwable ignored) {
+                ps.firstInstallTime = System.currentTimeMillis();
+                ps.lastUpdateTime = ps.firstInstallTime;
+            }
+            try {
+                ps.save();
+            } catch (Throwable ignored) {
+            }
+        }
         BPackage p = ps.pkg;
         if (p != null) {
             PackageInfo packageInfo = null;
             try {
-                packageInfo = generatePackageInfo(p, flags, 0, 0, state, userId);
+                packageInfo = generatePackageInfo(p, flags,
+                        ps.firstInstallTime, ps.lastUpdateTime, state, userId);
             } catch (Throwable ignored) {
             }
             return packageInfo;
@@ -214,6 +233,7 @@ public class PackageManagerCompat {
         }
         return pi;
     }
+
 
     public static ActivityInfo generateActivityInfo(BPackage.Activity a, int flags, BPackageUserState state, int userId) {
         if (!checkUseInstalledOrHidden(flags, state, a.info.applicationInfo)) {

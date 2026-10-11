@@ -5,9 +5,12 @@ import android.content.Intent
 import android.net.Uri
 import android.net.VpnService
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
 import android.view.Menu
 import android.view.MenuItem
+import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.edit
 import androidx.viewpager2.widget.ViewPager2
@@ -399,6 +402,7 @@ class MainActivity : LoadingActivity() {
         }
     }
 
+
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
         try {
             when (item.itemId) {
@@ -413,16 +417,15 @@ class MainActivity : LoadingActivity() {
                 R.id.main_setting -> {
                     SettingActivity.start(this)
                 }
-                R.id.main_tg -> {
-                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://t.me/newblackboxa"))
-                    startActivity(intent)
-                }
                 R.id.fake_location -> {
-                    
                     val intent = Intent(this, FakeManagerActivity::class.java)
                     intent.putExtra("userID", 0)
                     startActivity(intent)
                 }
+                R.id.main_tg -> {
+                    startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://t.me/newblackboxa")))
+                }
+                else -> return super.onOptionsItemSelected(item)
             }
 
             return true
@@ -431,4 +434,5 @@ class MainActivity : LoadingActivity() {
             return false
         }
     }
+
 }

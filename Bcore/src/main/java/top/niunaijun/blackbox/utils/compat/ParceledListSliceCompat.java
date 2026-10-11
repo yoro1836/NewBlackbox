@@ -4,6 +4,7 @@ import java.lang.reflect.Method;
 import java.util.List;
 
 import black.android.content.pm.BRParceledListSlice;
+import black.android.content.pm.BRPackageInfoList;
 
 public class ParceledListSliceCompat {
 
@@ -13,6 +14,19 @@ public class ParceledListSliceCompat {
 
 	public static boolean isParceledListSlice(Object obj) {
 		return obj != null && obj.getClass() == BRParceledListSlice.getRealClass();
+	}
+
+	public static Object create(Method method, List<?> list) {
+		if (method != null
+				&& "android.content.pm.PackageInfoList".equals(
+				method.getReturnType().getName())) {
+			Object packageInfoList = BRPackageInfoList.get()._new(list);
+			if (packageInfoList != null) {
+				return packageInfoList;
+			}
+			throw new IllegalStateException("Unable to create PackageInfoList");
+		}
+		return create(list);
 	}
 
 	public static Object create(List<?> list) {

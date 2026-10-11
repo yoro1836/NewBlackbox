@@ -56,10 +56,18 @@ public class GmsCore {
             try {
                 BlackBoxCore.getContext().getPackageManager().getApplicationInfo(packageName, 0);
             } catch (PackageManager.NameNotFoundException e) {
-                
+                if (GMS_PKG.equals(packageName) || GSF_PKG.equals(packageName)
+                        || VENDING_PKG.equals(packageName)) {
+                    return new InstallResult().installError(packageName,
+                            "Required Google package is not visible on the host: " + packageName);
+                }
                 continue;
             }
             InstallResult installResult = blackBoxCore.installPackageAsUser(packageName, userId);
+            if (installResult == null) {
+                return new InstallResult().installError(packageName,
+                        "Virtual package manager did not return an installation result");
+            }
             if (!installResult.success) {
                 return installResult;
             }

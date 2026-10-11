@@ -12,4 +12,7 @@ public interface UserInfo {
 
     @BStaticField
     int FLAG_PRIMARY();
+
+    @BStaticField
+    int FLAG_MAIN();
 }

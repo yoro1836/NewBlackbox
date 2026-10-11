@@ -52,25 +52,35 @@ public class ContentProviderStub extends ClassInvocationStub implements BContent
         
         
         
+        // Only gservices needs to see the real virtual caller (it decides per package who may
+        // read android_id). Reporting the virtual package to other providers makes their
+        // custom-permission checks fail for apps that never declared those permissions
+        // (Play Store crashed reading the setup wizard's DeviceOriginProvider).
+        final String callerPkg = isGservicesCall(args) ? BActivityThread.getAppPackageName() : null;
         if ("call".equals(methodName)) {
-            
-            AttributionSourceUtils.fixAttributionSourceInArgs(args);
+
+            AttributionSourceUtils.fixAttributionSourceInArgs(args, callerPkg);
         } else {
             
             if (args != null && args.length > 0) {
-                for (int i = 0; i < args.length; i++) {
+                // Only before Android 12 do these methods carry a callingPkg string. Since then
+                // the caller travels in the AttributionSource and every remaining String is
+                // payload (applyBatch's authority, openFile's mode, a mime filter). Replacing
+                // them made GMS's applyBatch fail with "The authority top.niunaijun.blackbox
+                // does not match the one of the contentProvider".
+                for (int i = 0; i < args.length && android.os.Build.VERSION.SDK_INT < 31; i++) {
                     Object arg = args[i];
                     if (arg instanceof String) {
                         String strArg = (String) arg;
-                        
+
                         if (!isSystemProviderAuthority(strArg)) {
-                            
+
                             args[i] = mAppPkg;
                         }
                     }
                 }
-                
-                AttributionSourceUtils.fixAttributionSourceInArgs(args);
+
+                AttributionSourceUtils.fixAttributionSourceInArgs(args, callerPkg);
             }
         }
         
@@ -84,7 +94,6 @@ public class ContentProviderStub extends ClassInvocationStub implements BContent
             try {
                 return method.invoke(mBase, args);
             } catch (Throwable e) {
-                
                 Throwable cause = e.getCause();
                 if (isUidMismatchError(cause)) {
                     Slog.w(TAG, "UID mismatch in ContentProvider call, returning safe default: " + cause.getMessage());
@@ -121,6 +130,19 @@ public class ContentProviderStub extends ClassInvocationStub implements BContent
         }
     }
     
+    private static boolean isGservicesCall(Object[] args) {
+        if (args == null) {
+            return false;
+        }
+        for (Object a : args) {
+            if (a instanceof android.net.Uri) {
+                String authority = ((android.net.Uri) a).getAuthority();
+                return authority != null && authority.contains("gservices");
+            }
+        }
+        return false;
+    }
+
     private Object getSafeDefaultValue(String methodName) {
         switch (methodName) {
             case "query":

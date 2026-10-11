@@ -40,6 +40,7 @@ import top.niunaijun.blackbox.proxy.record.ProxyActivityRecord;
 import top.niunaijun.blackbox.utils.ComponentUtils;
 import top.niunaijun.blackbox.utils.Slog;
 import top.niunaijun.blackbox.utils.compat.ActivityManagerCompat;
+import top.niunaijun.blackbox.utils.compat.IntentCompat;
 
 import static android.content.pm.PackageManager.GET_ACTIVITIES;
 
@@ -236,9 +237,11 @@ public class ActivityStack {
         
 
         if (newIntentRecord != null) {
-            
-            deliverNewIntentLocked(newIntentRecord, intent);
-            return 0;
+            if (deliverNewIntentLocked(newIntentRecord, intent)) {
+                return 0;
+            }
+            // Target is dead; fall through and start it fresh below.
+            newIntentRecord = null;
         } else if (ignore) {
             return 0;
         }
@@ -258,11 +261,23 @@ public class ActivityStack {
                 resolvedType, resultTo, resultWho, requestCode, flags, options, userId, topActivityRecord, activityInfo, launchModeFlags);
     }
 
-    private void deliverNewIntentLocked(ActivityRecord activityRecord, Intent intent) {
+    private boolean deliverNewIntentLocked(ActivityRecord activityRecord, Intent intent) {
         try {
             activityRecord.processRecord.bActivityThread.handleNewIntent(activityRecord.token, intent);
+            return true;
+        } catch (android.os.DeadObjectException e) {
+            e.printStackTrace();
+            // The hosting process is gone but its record survived (missed
+            // death notice). Drop it so the caller starts a fresh process.
+            try {
+                top.niunaijun.blackbox.core.system.BProcessManagerService.get()
+                        .onProcessDie(activityRecord.processRecord);
+            } catch (Throwable ignored) {
+            }
+            return false;
         } catch (RemoteException e) {
             e.printStackTrace();
+            return true;
         }
     }
 
@@ -361,6 +376,7 @@ public class ActivityStack {
             }
         }
         ProxyActivityRecord.saveStub(shadow, intent, target.mActivityInfo, target.mActivityRecord, target.mUserId);
+        IntentCompat.collectExtraIntentKeys(shadow);
         return shadow;
     }
 

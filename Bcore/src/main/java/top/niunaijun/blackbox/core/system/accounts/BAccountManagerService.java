@@ -116,7 +116,9 @@ public class BAccountManagerService extends IBAccountManagerService.Stub impleme
 
     @Override
     public void onPackageInstalled(String packageName, int userId) {
-        loadAuthenticatorCache(packageName);
+        // Rebuild the complete cache: package installs arrive one by one, and
+        // loading only the last package would discard GMS's authenticator.
+        loadAuthenticatorCache(null);
     }
 
     private void loadAccounts() {
@@ -199,16 +201,9 @@ public class BAccountManagerService extends IBAccountManagerService.Stub impleme
 
     @Override
     public AuthenticatorDescription[] getAuthenticatorTypes(int userId) throws RemoteException {
-        
-        BUserAccounts userAccounts = getUserAccounts(userId);
         List<AuthenticatorDescription> authenticatorDescriptions = new ArrayList<>();
-        synchronized (userAccounts.lock) {
-            for (BAccount account : userAccounts.accounts) {
-                AuthenticatorInfo authenticatorInfo = mAuthenticatorCache.authenticators.get(account.account.type);
-                if (authenticatorInfo != null) {
-                    authenticatorDescriptions.add(authenticatorInfo.desc);
-                }
-            }
+        for (AuthenticatorInfo authenticatorInfo : mAuthenticatorCache.authenticators.values()) {
+            authenticatorDescriptions.add(authenticatorInfo.desc);
         }
         return authenticatorDescriptions.toArray(new AuthenticatorDescription[]{});
     }
@@ -220,13 +215,24 @@ public class BAccountManagerService extends IBAccountManagerService.Stub impleme
         List<Account> accounts = new ArrayList<>();
         synchronized (userAccounts.lock) {
             for (BAccount account : userAccounts.accounts) {
-                Integer visibility = account.visibility.get(packageName);
-                if (visibility != null && visibility == AccountManager.VISIBILITY_VISIBLE) {
+                if (isVisibleToPackage(account, packageName)) {
                     accounts.add(account.account);
                 }
             }
         }
         return accounts.toArray(new Account[]{});
+    }
+
+    /**
+     * Same default as the platform: a package with no explicit visibility entry sees the
+     * account; only an explicit "not visible" hides it. Requiring an explicit VISIBLE entry
+     * hid the account from every app GMS had not listed (Play Store showed none).
+     */
+    private static boolean isVisibleToPackage(BAccount account, String packageName) {
+        Integer visibility = account.visibility.get(packageName);
+        return visibility == null
+                || (visibility != AccountManager.VISIBILITY_NOT_VISIBLE
+                && visibility != AccountManager.VISIBILITY_USER_MANAGED_NOT_VISIBLE);
     }
 
     @Override
@@ -236,11 +242,8 @@ public class BAccountManagerService extends IBAccountManagerService.Stub impleme
         List<Account> accounts = new ArrayList<>();
         synchronized (userAccounts.lock) {
             for (BAccount account : userAccounts.accounts) {
-                if (account.account.type.equals(type)) {
-                    Integer visibility = account.visibility.get(packageName);
-                    if (visibility != null && visibility == AccountManager.VISIBILITY_VISIBLE) {
-                        accounts.add(account.account);
-                    }
+                if (account.account.type.equals(type) && isVisibleToPackage(account, packageName)) {
+                    accounts.add(account.account);
                 }
             }
         }
@@ -253,7 +256,7 @@ public class BAccountManagerService extends IBAccountManagerService.Stub impleme
         List<Account> accounts = new ArrayList<>();
         synchronized (userAccounts.lock) {
             for (BAccount account : userAccounts.accounts) {
-                if (account.account.type.equals(accountType)) {
+                if (accountType == null || account.account.type.equals(accountType)) {
                     accounts.add(account.account);
                 }
             }
@@ -536,15 +539,15 @@ public class BAccountManagerService extends IBAccountManagerService.Stub impleme
         final boolean customTokens =
                 authenticatorInfo != null && authenticatorInfo.desc.customTokens;
 
-        
-        final String callerPkg = loginOptions.getString(AccountManager.KEY_ANDROID_PACKAGE_NAME);
+        final Bundle options = loginOptions == null ? new Bundle() : loginOptions;
+        final String callerPkg = options.getString(AccountManager.KEY_ANDROID_PACKAGE_NAME);
 
         
-        loginOptions.putInt(AccountManager.KEY_CALLER_UID, Binder.getCallingUid());
-        loginOptions.putInt(AccountManager.KEY_CALLER_PID, Binder.getCallingPid());
+        options.putInt(AccountManager.KEY_CALLER_UID, Binder.getCallingUid());
+        options.putInt(AccountManager.KEY_CALLER_PID, Binder.getCallingPid());
 
         if (notifyOnAuthFailure) {
-            loginOptions.putBoolean(AccountManagerCompat.KEY_NOTIFY_ON_FAILURE, true);
+            options.putBoolean(AccountManagerCompat.KEY_NOTIFY_ON_FAILURE, true);
         }
 
         
@@ -591,19 +594,18 @@ public class BAccountManagerService extends IBAccountManagerService.Stub impleme
                 false ) {
             @Override
             protected String toDebugString(long now) {
-                if (loginOptions != null) loginOptions.keySet();
+                options.keySet();
                 return super.toDebugString(now) + ", getAuthToken"
                         + ", " + account.toString()
                         + ", authTokenType " + authTokenType
-                        + ", loginOptions " + loginOptions
-                        + ", notifyOnAuthFailure " + notifyOnAuthFailure;
+                        + ", loginOptions " + options;
             }
 
             @Override
             public void run() throws RemoteException {
                 
                 
-                mAuthenticator.getAuthToken(this, account, authTokenType, loginOptions);
+                mAuthenticator.getAuthToken(this, account, authTokenType, options);
             }
 
             @Override
@@ -661,7 +663,15 @@ public class BAccountManagerService extends IBAccountManagerService.Stub impleme
 
 
 
-        final Bundle options = (optionsIn == null) ? new Bundle() : optionsIn;
+        final Bundle options = (optionsIn == null) ? new Bundle() : new Bundle(optionsIn);
+        final int callingPid = Binder.getCallingPid();
+        final ProcessRecord caller = BProcessManagerService.get().findProcessByPid(callingPid);
+        if (caller != null && caller.userId != userId) {
+            throw new SecurityException("Cannot add an account for another virtual user");
+        }
+        options.putInt(AccountManager.KEY_CALLER_UID,
+                caller == null ? Binder.getCallingUid() : caller.buid);
+        options.putInt(AccountManager.KEY_CALLER_PID, callingPid);
 
 
 
@@ -686,7 +696,8 @@ public class BAccountManagerService extends IBAccountManagerService.Stub impleme
 
     @Override
     public void addAccountAsUser(IAccountManagerResponse response, String accountType, String authTokenType, String[] requiredFeatures, boolean expectActivityLaunch, Bundle options, int userId) throws RemoteException {
-        
+        addAccount(response, accountType, authTokenType, requiredFeatures,
+                expectActivityLaunch, options, userId);
     }
 
     @Override

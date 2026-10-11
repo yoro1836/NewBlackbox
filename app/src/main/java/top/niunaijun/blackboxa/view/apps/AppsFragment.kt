@@ -337,15 +337,23 @@ class AppsFragment : Fragment() {
                 try {
                     popupMenu = PopupMenu(requireContext(),view).also {
                         it.inflate(R.menu.app_menu)
+                        it.menu.findItem(R.id.app_xposed)?.let { xposedItem ->
+                            xposedItem.isVisible = data.isXpModule
+                            if (data.isXpModule) {
+                                xposedItem.isChecked =
+                                        top.niunaijun.blackbox.core.xposed.XposedManager
+                                                .loadEnabledModules().contains(data.packageName)
+                            }
+                        }
                         it.setOnMenuItemClickListener { item ->
                             try {
                                 when (item.itemId) {
+                                    R.id.app_xposed -> {
+                                        toggleXpModule(data)
+                                    }
+
                                     R.id.app_remove -> {
-                                        if (data.isXpModule) {
-                                            toast(R.string.uninstall_module_toast)
-                                        } else {
-                                            unInstallApk(data)
-                                        }
+                                        unInstallApk(data)
                                     }
 
                                     R.id.app_clear -> {
@@ -376,6 +384,22 @@ class AppsFragment : Fragment() {
             Log.e(TAG, "Error in setOnLongClick: ${e.message}")
         }
     }
+    private fun toggleXpModule(data: top.niunaijun.blackboxa.bean.AppInfo) {
+        try {
+            val enabled =
+                top.niunaijun.blackbox.core.xposed.XposedManager.loadEnabledModules()
+                    .toMutableSet()
+            if (enabled.contains(data.packageName)) {
+                enabled.remove(data.packageName)
+            } else {
+                enabled.add(data.packageName)
+            }
+            top.niunaijun.blackbox.core.xposed.XposedManager.saveEnabledModules(enabled)
+        } catch (e: Exception) {
+            Log.e(TAG, "Error toggling Xposed module: ${e.message}")
+        }
+    }
+
     
     private fun initData() {
         try {

@@ -7,6 +7,10 @@ import android.util.Log
 class AppsTouchCallBack(private val onMoveBlock: (from: Int, to: Int) -> Unit) :
     ItemTouchHelper.Callback() {
 
+    // Long-press opens the app context menu (uninstall/stop/Xposed...).
+    // Letting ItemTouchHelper consume it for drag would suppress the menu.
+    override fun isLongPressDragEnabled(): Boolean = false
+
     companion object {
         private const val TAG = "AppsTouchCallBack"
     }

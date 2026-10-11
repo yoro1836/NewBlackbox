@@ -194,20 +194,23 @@ public class WebViewProxy extends ClassInvocationStub {
                 if (args != null && args.length > 0) {
                     String suffix = (String) args[0];
                     Slog.d(TAG, "WebView: setDataDirectorySuffix called with: " + suffix);
-                    
-                    
-                    Context context = BlackBoxCore.getContext();
-                    String packageName = context != null ? context.getPackageName() : "unknown";
+
+                    // Stable per stub slot: myPid() made EVERY launch a fresh
+                    // Chromium profile, killing cookies/sessions (logins).
+                    // bpid is unique among live stubs and reused on relaunch.
+                    int stubId = BActivityThread.getAppPid();
                     String userId = String.valueOf(BActivityThread.getUserId());
-                    String uniqueSuffix = suffix + "_" + userId + "_" + android.os.Process.myPid();
+                    String uniqueSuffix = (stubId >= 0)
+                            ? suffix + "_" + userId + "_" + stubId
+                            : suffix + "_" + userId;
                     args[0] = uniqueSuffix;
                     Slog.d(TAG, "WebView: Using unique suffix: " + uniqueSuffix);
                 }
-                
+
                 return method.invoke(who, args);
             } catch (Exception e) {
                 Slog.w(TAG, "WebView: setDataDirectorySuffix failed, continuing without suffix", e);
-                return null; 
+                return null;
             }
         }
     }
@@ -219,28 +222,27 @@ public class WebViewProxy extends ClassInvocationStub {
         protected Object hook(Object who, Method method, Object[] args) throws Throwable {
             try {
                 Slog.d(TAG, "WebView: getDataDirectory called, returning unique directory");
-                
-                
+
                 Context context = BlackBoxCore.getContext();
                 if (context != null) {
-                    String packageName = context.getPackageName();
                     String userId = String.valueOf(BActivityThread.getUserId());
-                    String uniqueDir = context.getApplicationInfo().dataDir + "/webview_" + userId + "_" + android.os.Process.myPid();
-                    
-                    
+                    int stubId = BActivityThread.getAppPid();
+                    String uniqueDir = context.getApplicationInfo().dataDir + "/webview_" + userId
+                            + (stubId >= 0 ? "_" + stubId : "");
+
                     File dir = new File(uniqueDir);
                     if (!dir.exists()) {
                         dir.mkdirs();
                     }
-                    
+
                     Slog.d(TAG, "WebView: Returning unique data directory: " + uniqueDir);
                     return uniqueDir;
                 }
-                
+
                 return method.invoke(who, args);
             } catch (Exception e) {
                 Slog.w(TAG, "WebView: getDataDirectory failed, returning fallback", e);
-                
+
                 return "/data/data/" + BlackBoxCore.getHostPkg() + "/webview_fallback";
             }
         }

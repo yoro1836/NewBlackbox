@@ -10,6 +10,7 @@ import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.content.pm.ProviderInfo;
 import android.content.pm.ResolveInfo;
+import android.os.Bundle;
 import android.os.IBinder;
 import android.os.IInterface;
 import android.util.Log;
@@ -31,6 +32,7 @@ import black.android.util.BRSingleton;
 import top.niunaijun.blackbox.BlackBoxCore;
 import top.niunaijun.blackbox.app.BActivityThread;
 import top.niunaijun.blackbox.core.env.AppSystemEnv;
+import top.niunaijun.blackbox.core.GmsCore;
 import top.niunaijun.blackbox.entity.AppConfig;
 import top.niunaijun.blackbox.entity.am.RunningAppProcessInfo;
 import top.niunaijun.blackbox.entity.am.RunningServiceInfo;
@@ -109,7 +111,33 @@ public class IActivityManagerProxy extends ClassInvocationStub {
             
             String methodName = method.getName();
             Slog.w(TAG, "ActivityManager invoke: SecurityException in " + methodName + ", returning safe default", e);
-            
+
+            // A null for a primitive return unboxes to an NPE in the app (GMS crashed in
+            // ActivityManager.getUidImportance and its process died in a restart loop).
+            Class<?> returnType = method.getReturnType();
+            if (returnType.isPrimitive()) {
+                if (returnType == void.class) {
+                    return null;
+                } else if (returnType == boolean.class) {
+                    return false;
+                } else if (returnType == int.class) {
+                    // -1 is PROCESS_STATE_UNKNOWN: the uid reads as "gone/unknown".
+                    return "getUidProcessState".equals(methodName) ? -1 : 0;
+                } else if (returnType == long.class) {
+                    return 0L;
+                } else if (returnType == float.class) {
+                    return 0f;
+                } else if (returnType == double.class) {
+                    return 0d;
+                } else if (returnType == short.class) {
+                    return (short) 0;
+                } else if (returnType == byte.class) {
+                    return (byte) 0;
+                } else if (returnType == char.class) {
+                    return (char) 0;
+                }
+            }
+
             
             if (methodName.startsWith("set") || methodName.startsWith("update")) {
                 return null; 
@@ -145,15 +173,7 @@ public class IActivityManagerProxy extends ClassInvocationStub {
                     args[1] = BlackBoxCore.getHostPkg();
                 }
 
-                if (auth.equals("settings")
-                        || auth.equals("media")
-                        || auth.equals("telephony")
-                        || ((String) auth).contains("com.google.android.gms")
-                        || ((String) auth).contains("com.android.vending")
-                        || ((String) auth).contains("com.google.android.gsf")
-                        || auth.equals("com.google.android.gms.chimera")
-                        || auth.equals("com.huawei.android.launcher.settings")
-                        || auth.equals("com.hihonor.android.launcher.settings")) {
+                if (isHostFirstAuthority((String) auth)) {
                     content = method.invoke(who, args);
                     ContentProviderDelegate.update(content, (String) auth);
                     return content;
@@ -164,11 +184,11 @@ public class IActivityManagerProxy extends ClassInvocationStub {
                             .resolveContentProvider(
                                     (String) auth, GET_META_DATA, BActivityThread.getUserId());
                     if (providerInfo == null) {
-                        
+
                         return null;
                     }
 
-                    
+
                     IBinder providerBinder = null;
                     if (BActivityThread.getAppPid() != -1) {
                         AppConfig appConfig = BlackBoxCore.getBActivityManager()
@@ -179,6 +199,15 @@ public class IActivityManagerProxy extends ClassInvocationStub {
                         if (appConfig.bpid != BActivityThread.getAppPid()) {
                             providerBinder = BlackBoxCore.getBActivityManager()
                                     .acquireContentProviderClient(providerInfo);
+                        } else {
+                            // Provider lives in the calling process itself. It may
+                            // still be installing during the first bind, so wait
+                            // briefly for the local publication before returning.
+                            Object localHolder = acquireLocalProviderHolder((String) auth);
+                            if (localHolder != null) {
+                                return localHolder;
+                            }
+                            return null;
                         }
                         args[authIndex] = ProxyManifest.getProxyAuthorities(appConfig.bpid);
                         args[getUserIndex()] = BlackBoxCore.getHostUserId();
@@ -203,7 +232,7 @@ public class IActivityManagerProxy extends ClassInvocationStub {
         }
 
         protected int getAuthIndex() {
-            
+
             if (BuildCompat.isQ()) {
                 return 2;
             } else {
@@ -214,6 +243,95 @@ public class IActivityManagerProxy extends ClassInvocationStub {
         protected int getUserIndex() {
             return getAuthIndex() + 1;
         }
+
+        private static Object acquireLocalProviderHolder(String authority) {
+            for (int i = 0; i < 10; i++) {
+                try {
+                    Object mainThread = BlackBoxCore.mainThread();
+                    java.lang.reflect.Field mapField =
+                            mainThread.getClass().getDeclaredField("mProviderMap");
+                    mapField.setAccessible(true);
+                    Object map = mapField.get(mainThread);
+                    if (map instanceof java.util.Map) {
+                        if (i == 0) {
+                            StringBuilder keys = new StringBuilder();
+                            for (Object k : ((java.util.Map<?, ?>) map).keySet()) {
+                                if (k == null) {
+                                    keys.append("null,");
+                                    continue;
+                                }
+                                try {
+                                    java.lang.reflect.Field kf =
+                                            k.getClass().getDeclaredField("authority");
+                                    kf.setAccessible(true);
+                                    keys.append(kf.get(k)).append(",");
+                                } catch (Throwable t) {
+                                    keys.append(k.getClass().getName()).append(",");
+                                }
+                            }
+                            Slog.d(TAG, "Local provider map keys for " + authority + ": " + keys);
+                        }
+                        for (Object key : ((java.util.Map<?, ?>) map).keySet()) {
+                            if (key == null) {
+                                continue;
+                            }
+                            java.lang.reflect.Field authField =
+                                    key.getClass().getDeclaredField("authority");
+                            authField.setAccessible(true);
+                            Object keyAuth = authField.get(key);
+                            if (authority.equals(keyAuth)) {
+                                Object record = ((java.util.Map<?, ?>) map).get(key);
+                                java.lang.reflect.Field holderField =
+                                        record.getClass().getDeclaredField("mHolder");
+                                holderField.setAccessible(true);
+                                Object holder = holderField.get(record);
+                                if (holder != null) {
+                                    return holder;
+                                }
+                            }
+                        }
+                    }
+                } catch (Throwable e) {
+                    Slog.w(TAG, "Local provider lookup failed for " + authority + ": " + e);
+                    return null;
+                }
+                try {
+                    Thread.sleep(200);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    return null;
+                }
+            }
+            Slog.w(TAG, "Local provider not published in time: " + authority);
+            return null;
+        }
+
+        private static boolean isHostFirstAuthority(String auth) {
+            // Gservices holds the device identity (android_id) written by the virtual GMS
+            // checkin. The host GMS refuses to hand its device id to an unapproved package
+            // ("Package top.niunaijun.blackbox is not approved to access the device ID"),
+            // so Play Store read android_id = 0 and rendered a blank screen.
+            if (auth.contains("gservices")) {
+                return false;
+            }
+            // Chimera answers "which service implements this action" from the config of the
+            // GMS that is actually running. Asked on the host it knows nothing about the
+            // virtual GMS, so Play Games' dynamic service lookup failed and sign-in never
+            // connected ("Dynamic lookup for intent failed for action ...games.internal.connect").
+            if (auth.equals("com.google.android.gms.chimera") || auth.equals("com.google.android.chimera")) {
+                return false;
+            }
+            return auth.equals("settings")
+                    || auth.equals("media")
+                    || auth.equals("telephony")
+                    || auth.contains("com.google.android.gms")
+                    || auth.contains("com.android.vending")
+                    || auth.contains("com.google.android.gsf")
+                    || auth.equals("com.google.android.gms.chimera")
+                    || auth.equals("com.huawei.android.launcher.settings")
+                    || auth.equals("com.hihonor.android.launcher.settings");
+        }
+
     }
 
     @ProxyMethod("startService")
@@ -221,11 +339,15 @@ public class IActivityManagerProxy extends ClassInvocationStub {
         @Override
         protected Object hook(Object who, Method method, Object[] args) throws Throwable {
             Intent intent = (Intent) args[1];
-            String resolvedType = (String) args[2];
-            ResolveInfo resolveInfo = BlackBoxCore.getBPackageManager().resolveService(intent, 0, resolvedType, BActivityThread.getUserId());
-            if (resolveInfo == null) {
+            ComponentName component = intent != null ? intent.getComponent() : null;
+            // Already-resolved stub intents target host proxy components. They can
+            // never resolve in the virtual package manager, so skip the virtual
+            // resolve hop (extra Binder round-trip into the system process that
+            // widens lock contention) and deliver straight to the host.
+            if (component != null && BlackBoxCore.getHostPkg().equals(component.getPackageName())) {
                 return method.invoke(who, args);
             }
+            String resolvedType = (String) args[2];
 
             int requireForegroundIndex = getRequireForeground();
             boolean requireForeground = false;
@@ -339,61 +461,140 @@ public class IActivityManagerProxy extends ClassInvocationStub {
     }
 
     public static Object BindServiceCommon(Object who, Method method, Object[] args,int callingPackageIndex) throws Throwable {
-        try {
-            Intent intent = (Intent) args[2];
-            String resolvedType = (String) args[3];
-            IServiceConnection connection = (IServiceConnection) args[4];
+        Intent intent = (Intent) args[2];
+        String resolvedType = (String) args[3];
+        IServiceConnection connection = (IServiceConnection) args[4];
 
-            
-            if (intent == null) {
-                Slog.w(TAG, "BindServiceCommon: Intent is null, proceeding with original call");
+        if (intent == null) {
+            Slog.w(TAG, "BindServiceCommon: Intent is null, proceeding with original call");
+            return method.invoke(who, args);
+        }
+
+        int userId = intent.getIntExtra("_B_|_UserId", -1);
+        userId = userId == -1 ? BActivityThread.getUserId() : userId;
+        ResolveInfo resolveInfo = BlackBoxCore.getBPackageManager()
+                .resolveService(intent, 0, resolvedType, userId);
+
+        /*
+         * A virtual service wins whenever the virtual package manager resolves
+         * one. This matters for non-exported services such as the GMS account
+         * authenticator: binding the host copy would run under the host UID and
+         * fail the service's package/permission checks. Only fall back to a
+         * host GMS bind when there is no virtual match.
+         */
+        if (resolveInfo == null && isHostGoogleService(intent, resolveInfo)) {
+            Slog.d(TAG, "GMS host bind package="
+                    + BActivityThread.getAppPackageName()
+                    + " action=" + intent.getAction()
+                    + " component=" + intent.getComponent());
+            if (connection != null) {
+                IServiceConnection proxy = ServiceConnectionDelegate.createProxy(
+                        connection, intent, true);
+                args[4] = proxy;
+                updateServiceDispatcherConnection(connection, proxy);
+            }
+            if (callingPackageIndex >= 0 && callingPackageIndex < args.length) {
+                args[callingPackageIndex] = BlackBoxCore.getHostPkg();
+            }
+            replaceBindUserWithHostUser(args);
+            return method.invoke(who, args);
+        }
+
+        if (resolveInfo != null && resolveInfo.serviceInfo != null
+                && GmsCore.isGoogleAppOrService(resolveInfo.serviceInfo.packageName)) {
+            Slog.d(TAG, "GMS virtual bind package="
+                    + BActivityThread.getAppPackageName()
+                    + " action=" + intent.getAction()
+                    + " service=" + resolveInfo.serviceInfo.name);
+        }
+        if (resolveInfo != null || AppSystemEnv.isOpenPackage(intent.getComponent())) {
+            Intent proxyIntent = BlackBoxCore.getBActivityManager().bindService(intent,
+                    connection == null ? null : connection.asBinder(),
+                    resolvedType,
+                    userId);
+            if (connection != null) {
+                if (intent.getComponent() == null && resolveInfo != null) {
+                    intent.setComponent(new ComponentName(
+                            resolveInfo.serviceInfo.packageName,
+                            resolveInfo.serviceInfo.name));
+                }
+                IServiceConnection proxy = ServiceConnectionDelegate.createProxy(
+                        connection, intent, false);
+                args[4] = proxy;
+                updateServiceDispatcherConnection(connection, proxy);
+            }
+
+            if (proxyIntent != null && proxyIntent.getComponent() != null
+                    && proxyIntent.getComponent().getPackageName()
+                    .equals(BlackBoxCore.getHostPkg())) {
+                int flagsIndex = getFlagsIndex(args);
+                if (flagsIndex >= 0) {
+                    int flags = MethodParameterUtils.toInt(args[flagsIndex]);
+                    flags &= ~Context.BIND_EXTERNAL_SERVICE;
+                    args[flagsIndex] = flags;
+                }
+            }
+            if (callingPackageIndex >= 0 && callingPackageIndex < args.length) {
+                args[callingPackageIndex] = BlackBoxCore.getHostPkg();
+            }
+
+            if (proxyIntent != null) {
+                args[2] = proxyIntent;
                 return method.invoke(who, args);
             }
+        }
+        return method.invoke(who, args);
+    }
 
-            
-
-            int userId = intent.getIntExtra("_B_|_UserId", -1);
-            userId = userId == -1 ? BActivityThread.getUserId() : userId;
-            ResolveInfo resolveInfo = BlackBoxCore.getBPackageManager().resolveService(intent, 0, resolvedType, userId);
-            if (resolveInfo != null || AppSystemEnv.isOpenPackage(intent.getComponent())) {
-                Intent proxyIntent = BlackBoxCore.getBActivityManager().bindService(intent,
-                        connection == null ? null : connection.asBinder(),
-                        resolvedType,
-                        userId);
-                if (connection != null) {
-                    if (intent.getComponent() == null && resolveInfo != null) {
-                        intent.setComponent(new ComponentName(resolveInfo.serviceInfo.packageName, resolveInfo.serviceInfo.name));
-                    }
-                    IServiceConnection proxy = ServiceConnectionDelegate.createProxy(connection, intent);
-                    args[4] = proxy;
-
-                    WeakReference<?> weakReference = BRLoadedApkServiceDispatcherInnerConnection.get(connection).mDispatcher();
-                    if (weakReference != null) {
-                        BRLoadedApkServiceDispatcher.get(weakReference.get())._set_mConnection(proxy);
-                    }
-                }
-
-                
-                if (proxyIntent != null && proxyIntent.getComponent() != null && 
-                    proxyIntent.getComponent().getPackageName().equals(BlackBoxCore.getHostPkg())){
-                    int flagsIndex = getFlagsIndex(args);
-                    if (flagsIndex >= 0) {
-                        int flags = MethodParameterUtils.toInt(args[flagsIndex]);
-                        flags &= ~Context.BIND_EXTERNAL_SERVICE;
-                        args[flagsIndex] = flags;
-                    }
-                }
-                args[callingPackageIndex] = BlackBoxCore.getHostPkg();
-
-                if (proxyIntent != null) {
-                    args[2] = proxyIntent;
-                    return method.invoke(who, args);
+    private static boolean isHostGoogleService(Intent intent, ResolveInfo resolveInfo) {
+        String packageName = null;
+        if (intent != null) {
+            ComponentName component = intent.getComponent();
+            if (component != null) {
+                packageName = component.getPackageName();
+            }
+            if (packageName == null) {
+                packageName = intent.getPackage();
+            }
+            Intent selector = intent.getSelector();
+            if (packageName == null && selector != null) {
+                ComponentName selectorComponent = selector.getComponent();
+                if (selectorComponent != null) {
+                    packageName = selectorComponent.getPackageName();
+                } else {
+                    packageName = selector.getPackage();
                 }
             }
-            return method.invoke(who, args);
-        } catch (Exception e) {
-            Slog.e(TAG, "BindServiceCommon: Unexpected error", e);
-            return method.invoke(who, args);
+        }
+        if (packageName == null && resolveInfo != null && resolveInfo.serviceInfo != null) {
+            packageName = resolveInfo.serviceInfo.packageName;
+        }
+        return packageName != null && GmsCore.isGoogleAppOrService(packageName);
+    }
+
+    private static void replaceBindUserWithHostUser(Object[] args) {
+        int flagsIndex = getFlagsIndex(args);
+        for (int i = args.length - 1; i >= 5; i--) {
+            if (i == flagsIndex) {
+                continue;
+            }
+            if (args[i] instanceof Integer) {
+                args[i] = BlackBoxCore.getHostUserId();
+                return;
+            }
+        }
+    }
+
+    private static void updateServiceDispatcherConnection(
+            IServiceConnection connection, IServiceConnection proxy) {
+        try {
+            WeakReference<?> weakReference =
+                    BRLoadedApkServiceDispatcherInnerConnection.get(connection).mDispatcher();
+            if (weakReference != null && weakReference.get() != null) {
+                BRLoadedApkServiceDispatcher.get(weakReference.get())._set_mConnection(proxy);
+            }
+        } catch (Throwable e) {
+            Slog.w(TAG, "Unable to update service dispatcher callback", e);
         }
     }
 
@@ -512,6 +713,12 @@ public class IActivityManagerProxy extends ClassInvocationStub {
                         ProxyPendingRecord.saveStub(shadow, intent, BActivityThread.getUserId());
                         intents[i] = shadow;
                         break;
+                    case ActivityManagerCompat.INTENT_SENDER_SERVICE:
+                        Intent serviceShadow = wrapPendingService(intent);
+                        if (serviceShadow != null) {
+                            intents[i] = serviceShadow;
+                        }
+                        break;
                 }
             }
             IInterface invoke = (IInterface) method.invoke(who, args);
@@ -523,6 +730,33 @@ public class IActivityManagerProxy extends ClassInvocationStub {
                 BlackBoxCore.getBActivityManager().getIntentSender(invoke.asBinder(), packagesForUid[0], BActivityThread.getCallingBUid());
             }
             return invoke;
+        }
+
+        /**
+         * Service PendingIntents of virtual apps must come back to the virtual service, not the
+         * host package's real service. The shadow's action encodes the target's filter fields
+         * (no extras) so identity matches the platform: FLAG_NO_CREATE lookups and
+         * FLAG_UPDATE_CURRENT updates hit the same PendingIntent as on a real device.
+         */
+        private static Intent wrapPendingService(Intent target) {
+            if (target == null) {
+                return null;
+            }
+            int userId = BActivityThread.getUserId();
+            try {
+                if (BlackBoxCore.getBPackageManager().resolveService(target, 0, null, userId) == null) {
+                    return null;
+                }
+            } catch (Throwable e) {
+                return null;
+            }
+            Intent identity = new Intent(target);
+            identity.replaceExtras((Bundle) null);
+            Intent shadow = new Intent("_B_|_pending_service_|" + userId + "|" + identity.toUri(0));
+            shadow.setComponent(new ComponentName(BlackBoxCore.getHostPkg(),
+                    top.niunaijun.blackbox.proxy.ProxyPendingService.class.getName()));
+            ProxyPendingRecord.saveStub(shadow, target, userId);
+            return shadow;
         }
 
         private int getIntentsIndex(Object[] args) {
@@ -589,6 +823,8 @@ public class IActivityManagerProxy extends ClassInvocationStub {
                     args[i] = null;
                 }
             }
+            // The virtual user is recorded above; system_server must receive the host user.
+            args[args.length - 1] = BlackBoxCore.getHostUserId();
             return method.invoke(who, args);
         }
 
@@ -773,12 +1009,40 @@ public class IActivityManagerProxy extends ClassInvocationStub {
         }
     }
 
+
+    @ProxyMethod("checkPermissionForDevice")
+    public static class CheckPermissionForDevice extends MethodHook {
+        @Override
+        protected Object hook(Object who, Method method, Object[] args) throws Throwable {
+            if (Manifest.permission.ACCOUNT_MANAGER.equals(args[0])) {
+                return PackageManager.PERMISSION_GRANTED;
+            }
+            if (args.length >= 1
+                    && android.Manifest.permission.ACCESS_NETWORK_STATE.equals(args[0])) {
+                Slog.d(TAG, "Granting ACCESS_NETWORK_STATE (device check) to virtual caller");
+                return PackageManager.PERMISSION_GRANTED;
+            }
+            return method.invoke(who, args);
+        }
+    }
+
     @ProxyMethod("checkPermission")
     public static class checkPermission extends MethodHook {
         @Override
         protected Object hook(Object who, Method method, Object[] args) throws Throwable {
             MethodParameterUtils.replaceLastUid(args);
             String permission = (String) args[0];
+            if (android.Manifest.permission.ACCESS_NETWORK_STATE.equals(permission)) {
+                try {
+                    Object verdict = method.invoke(who, args);
+                    Slog.d(TAG, "checkPermission ACCESS_NETWORK_STATE -> " + verdict
+                            + " pid=" + args[1] + " uid=" + args[2]);
+                    return verdict;
+                } catch (Throwable t) {
+                    Slog.w(TAG, "checkPermission ACCESS_NETWORK_STATE threw: " + t);
+                    throw t;
+                }
+            }
             if (permission.equals(Manifest.permission.ACCOUNT_MANAGER)
                     || permission.equals(Manifest.permission.SEND_SMS)) {
                 return PackageManager.PERMISSION_GRANTED;

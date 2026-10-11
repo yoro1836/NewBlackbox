@@ -183,8 +183,34 @@ public class BPackageManager extends BlackManager<IBPackageManagerService> {
         return null;
     }
 
+    public java.util.List<ResolveInfo> queryIntentServices(Intent intent, int flags, int userId) {
+        // Dynamic Google service lookups must resolve through the virtual
+        // package manager rather than the host package manager.
+        if (transactionThrottler.shouldThrottle()) {
+            Log.w(TAG, "Throttling queryIntentServices due to recent failures");
+            return java.util.Collections.emptyList();
+        }
+
+        try {
+            IBPackageManagerService service = getService();
+            if (service != null) {
+                java.util.List<ResolveInfo> result = service.queryIntentServices(intent, flags, userId);
+                transactionThrottler.reset();
+                return result != null ? result : java.util.Collections.emptyList();
+            } else {
+                Log.w(TAG, "PackageManager service is null, returning empty for queryIntentServices");
+            }
+        } catch (RemoteException e) {
+            Log.e(TAG, "RemoteException in queryIntentServices", e);
+            transactionThrottler.recordFailure();
+        } catch (Exception e) {
+            Log.e(TAG, "Unexpected error in queryIntentServices", e);
+            transactionThrottler.recordFailure();
+        }
+        return java.util.Collections.emptyList();
+    }
+
     public ResolveInfo resolveActivity(Intent intent, int flags, String resolvedType, int userId) {
-        
         if (transactionThrottler.shouldThrottle()) {
             Log.w(TAG, "Throttling resolveActivity due to recent failures");
             return null;
@@ -575,8 +601,8 @@ public class BPackageManager extends BlackManager<IBPackageManagerService> {
     public boolean isInstalled(String packageName, int userId) {
         
         if (shouldUseFallbackMode()) {
-            Log.w(TAG, "Using fallback isInstalled check for " + packageName + " due to service failures");
-            return isInstalledFallback(packageName);
+            Log.w(TAG, "Virtual installation state unavailable for " + packageName);
+            return false;
         }
         
         try {
@@ -615,23 +641,6 @@ public class BPackageManager extends BlackManager<IBPackageManagerService> {
         return false;
     }
     
-    
-    private boolean isInstalledFallback(String packageName) {
-        try {
-            
-            BlackBoxCore.getContext().getPackageManager().getPackageInfo(packageName, 0);
-            return true;
-        } catch (Exception e) {
-            Log.d(TAG, "Fallback isInstalled check failed for " + packageName + ", assuming not installed");
-            
-            if (packageName != null && (packageName.equals("com.media.bestrecorder.audiorecorder") || 
-                                       packageName.startsWith("top.niunaijun.blackbox"))) {
-                Log.w(TAG, "Returning true for known app " + packageName + " despite fallback failure");
-                return true;
-            }
-            return false;
-        }
-    }
 
     public List<InstalledPackage> getInstalledPackagesAsUser(int userId) {
         try {
@@ -675,8 +684,10 @@ public class BPackageManager extends BlackManager<IBPackageManagerService> {
             info.publicSourceDir = null; 
         }
         
-        info.dataDir = "/data/data/" + packageName;
-        info.nativeLibraryDir = "/data/app-lib/" + packageName;
+        info.dataDir = top.niunaijun.blackbox.core.env.BEnvironment
+                .getDataDir(packageName, userId).getAbsolutePath();
+        info.nativeLibraryDir = top.niunaijun.blackbox.core.env.BEnvironment
+                .getDataLibDir(packageName, userId).getAbsolutePath();
         info.metaData = new Bundle();
         info.splitNames = new String[]{};
         

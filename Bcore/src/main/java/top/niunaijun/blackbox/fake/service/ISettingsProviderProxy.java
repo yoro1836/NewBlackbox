@@ -45,17 +45,15 @@ public class ISettingsProviderProxy extends ClassInvocationStub {
                     String key = (String) args[0];
                     if (key != null && key.contains("feature_flag")) {
                         Slog.d(TAG, "Intercepting feature flag query: " + key + ", returning safe default");
-                        return "true"; 
+                        return "true";
                     }
                 }
-                
-                
                 return method.invoke(who, args);
             } catch (Exception e) {
                 String errorMsg = e.getMessage();
                 if (errorMsg != null && errorMsg.contains("Calling uid") && errorMsg.contains("doesn't match source uid")) {
                     Slog.w(TAG, "UID mismatch in getStringForUser, returning safe default: " + errorMsg);
-                    return "true"; 
+                    return "true";
                 }
                 throw e;
             }
@@ -67,22 +65,19 @@ public class ISettingsProviderProxy extends ClassInvocationStub {
         @Override
         protected Object hook(Object who, Method method, Object[] args) throws Throwable {
             try {
-                
                 if (args != null && args.length > 0) {
                     String key = (String) args[0];
                     if (key != null && key.contains("feature_flag")) {
                         Slog.d(TAG, "Intercepting feature flag query: " + key + ", returning safe default");
-                        return "true"; 
+                        return "true";
                     }
                 }
-                
-                
                 return method.invoke(who, args);
             } catch (Exception e) {
                 String errorMsg = e.getMessage();
                 if (errorMsg != null && errorMsg.contains("Calling uid") && errorMsg.contains("doesn't match source uid")) {
                     Slog.w(TAG, "UID mismatch in getString, returning safe default: " + errorMsg);
-                    return "true"; 
+                    return "true";
                 }
                 throw e;
             }

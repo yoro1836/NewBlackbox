@@ -699,8 +699,21 @@ public class BPackageManagerService extends IBPackageManagerService.Stub impleme
             }
             BPackageSettings bPackageSettings = mSettings.getPackageLPw(aPackage.packageName, aPackage, option);
 
-            
-            BProcessManagerService.get().killPackageAsUser(aPackage.packageName, userId);
+            // Inherit host lineage so reinstall/first-run detection stays stable.
+            if (bPackageSettings.firstInstallTime == 0) {
+                try {
+                    android.content.pm.PackageInfo host =
+                            BlackBoxCore.getContext().getPackageManager()
+                                    .getPackageInfo(aPackage.packageName, 0);
+                    bPackageSettings.firstInstallTime = host.firstInstallTime;
+                    bPackageSettings.lastUpdateTime = host.lastUpdateTime;
+                } catch (Throwable ignored) {
+                    bPackageSettings.firstInstallTime = System.currentTimeMillis();
+                    bPackageSettings.lastUpdateTime = bPackageSettings.firstInstallTime;
+                }
+            } else {
+                bPackageSettings.lastUpdateTime = System.currentTimeMillis();
+            }
 
             int i = BPackageInstallerService.get().installPackageAsUser(bPackageSettings, userId);
             if (i < 0) {

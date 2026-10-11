@@ -4,8 +4,8 @@ import android.app.Service;
 import android.content.Intent;
 import android.content.pm.ServiceInfo;
 import android.content.res.Configuration;
-import android.os.Handler;
 import android.os.IBinder;
+import android.os.Handler;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -69,11 +69,11 @@ public class AppServiceDispatcher {
     }
 
     public int onStartCommand(Intent proxyIntent, int flags, int startId) {
+        android.util.Log.d(TAG, "onStartCommand: " + (proxyIntent != null ? proxyIntent.getAction() : "null")
+                + " cmp=" + (proxyIntent != null ? proxyIntent.getComponent() : "null"));
         ProxyServiceRecord stubRecord = ProxyServiceRecord.create(proxyIntent);
-        if (stubRecord.mServiceIntent == null || stubRecord.mServiceInfo == null) {
-            return START_NOT_STICKY;
-        }
-
+        android.util.Log.d(TAG, "onStartCommand target=" + (stubRecord.mServiceIntent != null ? stubRecord.mServiceIntent.getComponent() : "null")
+                + " action=" + (stubRecord.mServiceIntent != null ? stubRecord.mServiceIntent.getAction() : "null"));
 
         Service service = getOrCreateService(stubRecord);
         if (service == null)
@@ -90,6 +90,7 @@ public class AppServiceDispatcher {
         }
         return START_NOT_STICKY;
     }
+
 
     public void onDestroy() {
         if (mService.size() > 0) {
@@ -168,9 +169,11 @@ public class AppServiceDispatcher {
             if (destroy || record.decreaseConnectionCount(intent)) {
                 boolean b = service.onUnbind(intent);
                 if (destroy) {
-                    service.onDestroy();
-                    BlackBoxCore.getBActivityManager().onServiceDestroy(proxyIntent, BlackBoxCore.getUserId());
                     mService.remove(new Intent.FilterComparison(intent));
+                    if (isUnused(service)) {
+                        service.onDestroy();
+                    }
+                    BlackBoxCore.getBActivityManager().onServiceDestroy(proxyIntent, BlackBoxCore.getUserId());
                 }
                 record.setRebind(true);
 
@@ -199,9 +202,12 @@ public class AppServiceDispatcher {
             boolean destroy = record.getStartId() > 0;
             try {
                 if (destroy) {
-                    mHandler.post(() -> record.getService().onDestroy());
-                    BlackBoxCore.getBActivityManager().onServiceDestroy(intent, BlackBoxCore.getUserId());
+                    final Service stopped = record.getService();
                     mService.remove(new Intent.FilterComparison(intent));
+                    if (isUnused(stopped)) {
+                        mHandler.post(() -> stopped.onDestroy());
+                    }
+                    BlackBoxCore.getBActivityManager().onServiceDestroy(intent, BlackBoxCore.getUserId());
                 }
             } catch (Throwable e) {
                 e.printStackTrace();
@@ -222,12 +228,47 @@ public class AppServiceDispatcher {
         if (record != null && record.getService() != null) {
             return record.getService();
         }
-        Service service = BlackBoxCore.currentActivityThread().createService(serviceInfo, token);
+        // A component has exactly one Service instance, whatever the intent. Records are
+        // keyed by intent only to track bindings. Creating a second instance for another
+        // action broke GMS: its IntentOperationService parks a never-ending worker on a
+        // static single-thread executor, so every later instance (e.g. the checkin one)
+        // queued behind the first and never ran.
+        Service service = findServiceForComponent(serviceInfo);
+        if (service == null) {
+            service = BlackBoxCore.currentActivityThread().createService(serviceInfo, token);
+        }
         if (service == null)
             return null;
         record = new ServiceRecord();
         record.setService(service);
         mService.put(new Intent.FilterComparison(intent), record);
         return service;
+    }
+
+    private Service findServiceForComponent(ServiceInfo info) {
+        if (info == null || info.name == null) {
+            return null;
+        }
+        for (ServiceRecord r : mService.values()) {
+            Service s = r.getService();
+            if (s == null || !info.name.equals(s.getClass().getName())) {
+                continue;
+            }
+            android.content.pm.ApplicationInfo ai = s.getApplicationInfo();
+            if (ai == null || info.packageName == null || info.packageName.equals(ai.packageName)) {
+                return s;
+            }
+        }
+        return null;
+    }
+
+    /** True when no other intent record still uses this Service instance. */
+    private boolean isUnused(Service service) {
+        for (ServiceRecord r : mService.values()) {
+            if (r.getService() == service) {
+                return false;
+            }
+        }
+        return true;
     }
 }

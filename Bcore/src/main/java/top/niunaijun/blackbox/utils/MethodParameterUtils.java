@@ -26,6 +26,10 @@ public class MethodParameterUtils {
         for (int i = 0; i < args.length; i++) {
             if (args[i] instanceof String) {
                 String value = (String) args[i];
+                if (top.niunaijun.blackbox.core.GmsCore.isGoogleAppOrService(value)) {
+                    args[i] = BlackBoxCore.getHostPkg();
+                    return value;
+                }
                 if (BlackBoxCore.get().isInstalled(value, BlackBoxCore.getUserId())) {
                     args[i] = BlackBoxCore.getHostPkg();
                     return value;

@@ -19,9 +19,9 @@ import java.util.Arrays;
 import java.util.List;
 
 import black.android.app.BRActivityThread;
+import black.android.content.pm.BRPackageManager;
 import black.android.app.BRContextImpl;
 import black.android.app.ContextImpl;
-import black.android.content.pm.BRPackageManager;
 import top.niunaijun.blackbox.BlackBoxCore;
 import top.niunaijun.blackbox.app.BActivityThread;
 import top.niunaijun.blackbox.core.env.AppSystemEnv;
@@ -134,9 +134,6 @@ public class IPackageManagerProxy extends BinderInvocationStub {
             int flags = MethodParameterUtils.toInt(args[1]);
             
             
-            if ("com.android.vending".equals(packageName)) {
-                return createFakeGooglePlayServicesPackageInfo();
-            }
             
             PackageInfo packageInfo = BlackBoxCore.getBPackageManager().getPackageInfo(packageName, flags, BlackBoxCore.getUserId());
             if (packageInfo != null) {
@@ -160,28 +157,23 @@ public class IPackageManagerProxy extends BinderInvocationStub {
             return null;
         }
         
-        private PackageInfo createFakeGooglePlayServicesPackageInfo() {
-            PackageInfo packageInfo = new PackageInfo();
-            packageInfo.packageName = "com.android.vending";
-            packageInfo.versionName = "33.8.16-21";
-            packageInfo.versionCode = 83381621;
-            
-            ApplicationInfo appInfo = new ApplicationInfo();
-            appInfo.packageName = "com.android.vending";
-            appInfo.name = "Google Play Store";
-            appInfo.flags = ApplicationInfo.FLAG_SYSTEM;
-            appInfo.uid = 10001; 
-            packageInfo.applicationInfo = appInfo;
-            
-            Slog.d(TAG, "GetPackageInfo: Providing fake Google Play Services info");
-            return packageInfo;
-        }
+
     }
+
 
     @ProxyMethod("getPackageUid")
     public static class GetPackageUid extends MethodHook {
         @Override
         protected Object hook(Object who, Method method, Object[] args) throws Throwable {
+            try {
+                String pkg = (String) args[0];
+                ApplicationInfo ai = BlackBoxCore.getBPackageManager().getApplicationInfo(
+                        pkg, 0, BActivityThread.getUserId());
+                if (ai != null) {
+                    return ai.uid;
+                }
+            } catch (Throwable ignored) {
+            }
             MethodParameterUtils.replaceFirstAppPkg(args);
             return method.invoke(who, args);
         }
@@ -270,7 +262,7 @@ public class IPackageManagerProxy extends BinderInvocationStub {
         protected Object hook(Object who, Method method, Object[] args) throws Throwable {
             int flags = MethodParameterUtils.toInt(args[0]);
             List<PackageInfo> installedPackages = BlackBoxCore.getBPackageManager().getInstalledPackages(flags, BlackBoxCore.getUserId());
-            return ParceledListSliceCompat.create(installedPackages);
+            return ParceledListSliceCompat.create(method, installedPackages);
         }
     }
 
@@ -355,8 +347,20 @@ public class IPackageManagerProxy extends BinderInvocationStub {
         protected Object hook(Object who, Method method, Object[] args) throws Throwable {
             int uid = (Integer) args[0];
             if (uid == BlackBoxCore.getHostUid()) {
-                args[0] = BActivityThread.getBUid();
-                uid = (int) args[0];
+                int buid = BActivityThread.getBUid();
+                // Virtual clients send Process.myUid() (the host uid) to this process.
+                // While serving their binder call that uid means "the caller", not us;
+                // resolving it to our own virtual app made GMS reject every caller
+                // ("Package not matching uid 10613 com.android.vending").
+                int callingPid = android.os.Binder.getCallingPid();
+                if (callingPid != android.os.Process.myPid()) {
+                    int callerBUid = BlackBoxCore.getBActivityManager().getBUidByPid(callingPid);
+                    if (callerBUid > 0) {
+                        buid = callerBUid;
+                    }
+                }
+                args[0] = buid;
+                uid = buid;
             }
             String[] packagesForUid = BlackBoxCore.getBPackageManager().getPackagesForUid(uid);
             Slog.d(TAG, args[0] + " , " + BActivityThread.getAppProcessName() + " GetPackagesForUid: " + Arrays.toString(packagesForUid));
@@ -364,6 +368,25 @@ public class IPackageManagerProxy extends BinderInvocationStub {
         }
     }
 
+    @ProxyMethod("getNameForUid")
+    public static class GetNameForUid extends MethodHook {
+        @Override
+        protected Object hook(Object who, Method method, Object[] args) throws Throwable {
+            int uid = (Integer) args[0];
+            // Resolve virtual UIDs to virtual packages first: GMS caller
+            // validation (DroidGuard/auth broker) rejects the process when
+            // the system reports the host package for a virtual UID, which
+            // crashes the login flow on the caller's main thread.
+            try {
+                String[] pkgs = BlackBoxCore.getBPackageManager().getPackagesForUid(uid);
+                if (pkgs != null && pkgs.length > 0 && pkgs[0] != null) {
+                    return pkgs[0];
+                }
+            } catch (Throwable ignored) {
+            }
+            return method.invoke(who, args);
+        }
+    }
     @ProxyMethod("getInstallerPackageName")
     public static class GetInstallerPackageName extends MethodHook {
         @Override
@@ -414,6 +437,14 @@ public class IPackageManagerProxy extends BinderInvocationStub {
         protected Object hook(Object who, Method method, Object[] args) throws Throwable {
             String permission = (String) args[0];
             String packageName = (String) args[1];
+
+            // Virtual packages are unknown to the system service, which would
+            // deny them (e.g. Chromium's DNS config gate). The read reveals
+            // nothing sensitive.
+            if (android.Manifest.permission.ACCESS_NETWORK_STATE.equals(permission)) {
+                Slog.d(TAG, "Granting ACCESS_NETWORK_STATE to " + packageName);
+                return PackageManager.PERMISSION_GRANTED;
+            }
             
             
             if (isAudioPermission(permission)) {
@@ -426,14 +457,12 @@ public class IPackageManagerProxy extends BinderInvocationStub {
                 Slog.d(TAG, "SimpleAudioPermissionHook: Granting storage/media permission: " + permission + " to " + packageName);
                 return PackageManager.PERMISSION_GRANTED;
             }
-            
-            
+
             if (isNotificationOrXiaomiPermission(permission)) {
                 Slog.d(TAG, "SimpleAudioPermissionHook: Granting notification/Xiaomi permission: " + permission + " to " + packageName);
                 return PackageManager.PERMISSION_GRANTED;
             }
-            
-            
+
             return method.invoke(who, args);
         }
     }
@@ -444,6 +473,11 @@ public class IPackageManagerProxy extends BinderInvocationStub {
         protected Object hook(Object who, Method method, Object[] args) throws Throwable {
             String permission = (String) args[0];
             String packageName = (String) args[1];
+
+            if (android.Manifest.permission.ACCESS_NETWORK_STATE.equals(permission)) {
+                Slog.d(TAG, "Granting ACCESS_NETWORK_STATE to " + packageName);
+                return PackageManager.PERMISSION_GRANTED;
+            }
             
             
             if (isAudioPermission(permission)) {

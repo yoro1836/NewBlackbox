@@ -103,7 +103,7 @@ class AppsRepository {
                             continue
                         }
 
-                        val isXpModule = false
+                        val isXpModule = hasXposedInit(file)
 
                         val info =
                                 AppInfo(
@@ -280,10 +280,10 @@ class AppsRepository {
                                     safeLoadAppLabel(applicationInfo),
                                     safeLoadAppIcon(
                                             applicationInfo
-                                    ), 
+                                    ),
                                     applicationInfo.packageName,
                                     applicationInfo.sourceDir ?: "",
-                                    false
+                                    hasXposedInit(java.io.File(applicationInfo.sourceDir ?: ""))
                             )
 
                     appInfoList.add(info)
@@ -504,6 +504,20 @@ class AppsRepository {
             }
         } catch (e: Exception) {
             Log.e(TAG, "Error updating APK order: ${e.message}")
+        }
+    }
+
+    companion object {
+        /** True when the APK declares Xposed entry points. */
+        fun hasXposedInit(apk: java.io.File): Boolean {
+            try {
+                java.util.zip.ZipFile(apk).use { zip ->
+                    return zip.getEntry("assets/xposed_init") != null
+                }
+            } catch (e: Exception) {
+                Log.w("AppsRepository", "Cannot inspect ${apk.path}: ${e.message}")
+            }
+            return false
         }
     }
 }

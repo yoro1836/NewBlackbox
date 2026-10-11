@@ -16,6 +16,7 @@ import java.util.List;
 import black.android.net.BRIConnectivityManagerStub;
 import black.android.os.BRServiceManager;
 import top.niunaijun.blackbox.fake.hook.BinderInvocationStub;
+import top.niunaijun.blackbox.utils.MethodParameterUtils;
 import top.niunaijun.blackbox.fake.hook.ScanClass;
 import top.niunaijun.blackbox.fake.hook.MethodHook;
 import top.niunaijun.blackbox.fake.hook.ProxyMethod;
@@ -361,46 +362,29 @@ public class IConnectivityManagerProxy extends BinderInvocationStub {
                     Slog.w(TAG, "Error creating NetworkCapabilities: " + e.getMessage());
                 }
             }
+            // The system verifies callingPackage against the caller uid; a virtual package is
+            // never owned by the host uid ("Package com.android.vending does not belong to 10613").
+            MethodParameterUtils.replaceFirstAppPkg(args);
             return method.invoke(who, args);
         }
     }
 
-    
+
     @ProxyMethod("getActiveNetwork")
     public static class GetActiveNetwork extends MethodHook {
         @Override
         protected Object hook(Object who, Method method, Object[] args) throws Throwable {
             if (android.os.Build.VERSION.SDK_INT >= 21) {
                 try {
-                    
                     Object result = method.invoke(who, args);
-                    if (result != null) {
-                        return result;
-                    }
-
-                    
-                    
-                    android.net.Network network;
-                    try {
-                        
-                        Constructor<android.net.Network> constructor = android.net.Network.class.getConstructor(int.class);
-                        network = constructor.newInstance(1);
-                    } catch (Exception e) {
-                        
-                        try {
-                            Constructor<android.net.Network> defaultConstructor = android.net.Network.class.getDeclaredConstructor();
-                            defaultConstructor.setAccessible(true);
-                            network = defaultConstructor.newInstance();
-                        } catch (Exception e2) {
-                            
-                            Slog.w(TAG, "Could not create Network object, falling back to original method");
-                            return method.invoke(who, args);
-                        }
-                    }
-                    Slog.d(TAG, "Created mock Network object for sandboxed app (fallback)");
-                    return network;
+                    // Return stock null honestly. A fabricated Network with a
+                    // bogus netId only guarantees downstream failures
+                    // (e.g. getLinkProperties=fake throws, breaking
+                    // Chromium's DNS config read permanently).
+                    return result;
                 } catch (Exception e) {
-                    Slog.w(TAG, "Error creating Network object: " + e.getMessage());
+                    Slog.w(TAG, "Error reading active network: " + e);
+                    throw e;
                 }
             }
             return method.invoke(who, args);
@@ -440,22 +424,31 @@ public class IConnectivityManagerProxy extends BinderInvocationStub {
         @Override
         protected Object hook(Object who, Method method, Object[] args) throws Throwable {
             if (android.os.Build.VERSION.SDK_INT >= 21) {
-                try {
-                    
-                    Object result = method.invoke(who, args);
-                    if (result != null) {
-                        return result;
+                // One retry: a transient binder hiccup here permanently blinds
+                // Chromium's DNS config (it reads once at browser init).
+                for (int attempt = 0; attempt < 2; attempt++) {
+                    try {
+                        Object result = method.invoke(who, args);
+                        if (result != null) {
+                            return result;
+                        }
+                    } catch (Exception e) {
+                        Slog.w(TAG, "Error reading LinkProperties (attempt " + attempt + "): " + e);
+                        if (attempt == 0) {
+                            try {
+                                Thread.sleep(50);
+                            } catch (InterruptedException ignored) {
+                            }
+                            continue;
+                        }
+                        throw e;
                     }
-
-                    
-                    Object linkProperties = IConnectivityManagerProxy.createLinkProperties();
-                    
-                    if (linkProperties != null) {
-                        Slog.d(TAG, "Created LinkProperties with DNS configuration for sandboxed app (fallback)");
-                        return linkProperties;
-                    }
-                } catch (Exception e) {
-                    Slog.w(TAG, "Error creating LinkProperties: " + e.getMessage());
+                    break;
+                }
+                Object linkProperties = IConnectivityManagerProxy.createLinkProperties();
+                if (linkProperties != null) {
+                    Slog.d(TAG, "Created LinkProperties with DNS configuration for sandboxed app (fallback)");
+                    return linkProperties;
                 }
             }
             return method.invoke(who, args);
@@ -490,14 +483,20 @@ public class IConnectivityManagerProxy extends BinderInvocationStub {
         @Override
         protected Object hook(Object who, Method method, Object[] args) throws Throwable {
             try {
-                
+                // Prefer the real DNS servers: sandboxed Chromium/WebView
+                // resolves through these, and fabricated servers can be
+                // unreachable from the emulator NAT.
+                Object real = method.invoke(who, args);
+                if (real instanceof java.util.List && !((java.util.List<?>) real).isEmpty()) {
+                    return real;
+                }
                 java.util.List<java.net.InetAddress> dnsServers = new java.util.ArrayList<>();
                 dnsServers.add(java.net.InetAddress.getByName("8.8.8.8"));
                 dnsServers.add(java.net.InetAddress.getByName("8.8.4.4"));
-                Slog.d(TAG, "Returning system DNS servers for sandboxed app");
+                Slog.d(TAG, "Returning fallback DNS servers for sandboxed app");
                 return dnsServers;
             } catch (Exception e) {
-                Slog.w(TAG, "Error creating DNS servers list: " + e.getMessage());
+                Slog.w(TAG, "Error reading DNS servers list: " + e.getMessage());
                 return method.invoke(who, args);
             }
         }

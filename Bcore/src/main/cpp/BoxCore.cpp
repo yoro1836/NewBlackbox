@@ -103,8 +103,17 @@ void init(JNIEnv *env, jobject clazz, jint api_level) {
 void addIORule(JNIEnv *env, jclass clazz, jstring target_path,
                jstring relocate_path) {
     ALOGD("set addIORule");
-    IO::addRule(env->GetStringUTFChars(target_path, JNI_FALSE),
-                env->GetStringUTFChars(relocate_path, JNI_FALSE));
+    const char *target = env->GetStringUTFChars(target_path, nullptr);
+    const char *relocate = env->GetStringUTFChars(relocate_path, nullptr);
+    if (target != nullptr && relocate != nullptr) {
+        IO::addRule(target, relocate);
+    }
+    if (target != nullptr) {
+        env->ReleaseStringUTFChars(target_path, target);
+    }
+    if (relocate != nullptr) {
+        env->ReleaseStringUTFChars(relocate_path, relocate);
+    }
 }
 
 void enableIO(JNIEnv *env, jclass clazz) {
@@ -131,6 +140,10 @@ bool disableResourceLoading(JNIEnv *env, jclass clazz) {
     return true;
 }
 
+void setSpoofProp(JNIEnv *env, jclass clazz, jstring key, jstring value);
+extern "C" void Java_top_niunaijun_blackbox_core_NativeCore_clearSpoofProps(
+        JNIEnv *env, jclass clazz);
+
 static JNINativeMethod gMethods[] = {
         {"disableHiddenApi", "()Z",                               (void *) disableHiddenApi},
         {"disableResourceLoading", "()Z",                         (void *) disableResourceLoading},
@@ -138,6 +151,9 @@ static JNINativeMethod gMethods[] = {
         {"addIORule",  "(Ljava/lang/String;Ljava/lang/String;)V", (void *) addIORule},
         {"enableIO",   "()V",                                     (void *) enableIO},
         {"init",       "(I)V",                                    (void *) init},
+        {"setSpoofProp", "(Ljava/lang/String;Ljava/lang/String;)V", (void *) setSpoofProp},
+        {"clearSpoofProps", "()V",
+         (void *) Java_top_niunaijun_blackbox_core_NativeCore_clearSpoofProps},
 };
 
 int registerNativeMethods(JNIEnv *env, const char *className,

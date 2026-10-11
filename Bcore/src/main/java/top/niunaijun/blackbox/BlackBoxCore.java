@@ -338,6 +338,28 @@ public class BlackBoxCore extends ClientConfiguration {
         return getServiceInternal(name);
     }
     
+    // Keep the provider dependency while its exported service binders are cached.
+    // Otherwise Android can freeze :black despite foreground clients using them.
+    private android.content.ContentProviderClient mServerProvider;
+
+    private synchronized Bundle callServiceProvider(Bundle bundle) throws android.os.RemoteException {
+        if (mServerProvider == null) {
+            mServerProvider = getContext().getContentResolver()
+                    .acquireUnstableContentProviderClient(ProxyManifest.getBindProvider());
+        }
+        if (mServerProvider == null) {
+            return null;
+        }
+        try {
+            return mServerProvider.call("VM", null, bundle);
+        } catch (android.os.DeadObjectException e) {
+            mServerProvider.release();
+            mServerProvider = null;
+            mServices.clear();
+            throw e;
+        }
+    }
+
     private IBinder getServiceInternal(String name) {
         IBinder binder = mServices.get(name);
         if (binder != null && binder.isBinderAlive()) {
@@ -368,7 +390,7 @@ public class BlackBoxCore extends ClientConfiguration {
             
             Bundle vm = null;
             try {
-                vm = ProviderCall.callSafely(ProxyManifest.getBindProvider(), "VM", null, bundle);
+                vm = callServiceProvider(bundle);
             } catch (Exception e) {
                 
                 if (System.currentTimeMillis() - startTime > timeout) {

@@ -22,6 +22,8 @@ public class BPackageSettings implements Parcelable {
     public int appId;
     public InstallOption installOption;
     public Map<Integer, BPackageUserState> userState = new HashMap<>();
+    public long firstInstallTime;
+    public long lastUpdateTime;
     static final BPackageUserState DEFAULT_USER_STATE = new BPackageUserState();
 
     public BPackageSettings() {
@@ -124,6 +126,8 @@ public class BPackageSettings implements Parcelable {
             dest.writeValue(entry.getKey());
             dest.writeParcelable(entry.getValue(), flags);
         }
+        dest.writeLong(this.firstInstallTime);
+        dest.writeLong(this.lastUpdateTime);
     }
 
     protected BPackageSettings(Parcel in) {
@@ -136,6 +140,11 @@ public class BPackageSettings implements Parcelable {
             Integer key = (Integer) in.readValue(Integer.class.getClassLoader());
             BPackageUserState value = in.readParcelable(BPackageUserState.class.getClassLoader());
             this.userState.put(key, value);
+        }
+        // Appended later: old files have no trailing longs.
+        if (in.dataAvail() >= 16) {
+            this.firstInstallTime = in.readLong();
+            this.lastUpdateTime = in.readLong();
         }
     }
 
