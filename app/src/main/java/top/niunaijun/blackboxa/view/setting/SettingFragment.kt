@@ -14,7 +14,6 @@ class SettingFragment : PreferenceFragmentCompat() {
     override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
         setPreferencesFromResource(R.xml.setting, rootKey)
 
-        initGms()
 
         invalidHideState {
             val rootHidePreference: Preference = (findPreference("root_hide")!!)
@@ -43,22 +42,62 @@ class SettingFragment : PreferenceFragmentCompat() {
             disableFlagSecurePreference.setDefaultValue(mDisableFlagSecure)
             disableFlagSecurePreference
         }
-
         initSendLogs()
+        initSpoof()
+        initGms()
+        initXposed()
+    }
+
+    private fun initXposed() {
+        findPreference<Preference>("xposed_manager")?.setOnPreferenceClickListener {
+            top.niunaijun.blackboxa.view.xposed.XposedModulesActivity.start(requireContext())
+            true
+        }
     }
 
     private fun initGms() {
         val gmsManagerPreference: Preference = (findPreference("gms_manager")!!)
+        gmsManagerPreference.setOnPreferenceClickListener {
+            GmsManagerActivity.start(requireContext())
+            true
+        }
+    }
 
-        if (BlackBoxCore.get().isSupportGms) {
-
-            gmsManagerPreference.setOnPreferenceClickListener {
-                GmsManagerActivity.start(requireContext())
-                true
+    private fun initSpoof() {
+        try {
+            val current = top.niunaijun.blackbox.core.spoof.SpoofManager.loadProfile()
+            val keys = mapOf(
+                    "spoof_model" to "ro.product.model",
+                    "spoof_brand" to "ro.product.brand",
+                    "spoof_manufacturer" to "ro.product.manufacturer",
+                    "spoof_device" to "ro.product.device",
+                    "spoof_fingerprint" to "ro.build.fingerprint"
+            )
+            for ((prefKey, propKey) in keys) {
+                val pref: androidx.preference.EditTextPreference? = findPreference(prefKey)
+                pref ?: continue
+                pref.text = current[propKey]
+                pref.summary = current[propKey]
+                pref.setOnPreferenceChangeListener { _, newValue ->
+                    try {
+                        val updated = top.niunaijun.blackbox.core.spoof.SpoofManager
+                                .loadProfile().toMutableMap()
+                        val text = (newValue as? String).orEmpty()
+                        if (text.isEmpty()) {
+                            updated.remove(propKey)
+                        } else {
+                            updated[propKey] = text
+                        }
+                        top.niunaijun.blackbox.core.spoof.SpoofManager.saveProfile(updated)
+                        pref.summary = text.ifEmpty { null }
+                    } catch (e: Exception) {
+                        android.util.Log.e("SettingFragment", "spoof save failed: ${e.message}")
+                    }
+                    true
+                }
             }
-        } else {
-            gmsManagerPreference.summary = getString(R.string.no_gms)
-            gmsManagerPreference.isEnabled = false
+        } catch (e: Exception) {
+            android.util.Log.e("SettingFragment", "spoof init failed: ${e.message}")
         }
     }
 

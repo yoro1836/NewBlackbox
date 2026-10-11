@@ -7,11 +7,14 @@
     <PreferenceCategory app:title="@string/other">
 
         <Preference
+                android:key="xposed_manager"
+                android:title="@string/xposed_manager"
+                android:summary="@string/xposed_manager_summary" />
+
+        <Preference
                 android:key="gms_manager"
                 android:title="@string/gms_manager"
-                android:summary="@string/jump_gms"/>
-
-
+                android:summary="@string/jump_gms" />
 
         <SwitchPreferenceCompat
                 app:key="root_hide"
@@ -31,10 +34,39 @@
                 app:title="@string/disable_flag_secure"
                 app:summary="@string/disable_flag_secure_summary" />
 
-        <Preference
+    <Preference
                 android:key="send_logs"
                 android:title="Send Logs"
                 android:summary="Upload debug logs to developer" />
+
+    </PreferenceCategory>
+
+    <PreferenceCategory app:title="@string/spoof_category">
+
+        <EditTextPreference
+                app:key="spoof_model"
+                app:title="@string/spoof_model"
+                app:dialogTitle="@string/spoof_model" />
+
+        <EditTextPreference
+                app:key="spoof_brand"
+                app:title="@string/spoof_brand"
+                app:dialogTitle="@string/spoof_brand" />
+
+        <EditTextPreference
+                app:key="spoof_manufacturer"
+                app:title="@string/spoof_manufacturer"
+                app:dialogTitle="@string/spoof_manufacturer" />
+
+        <EditTextPreference
+                app:key="spoof_device"
+                app:title="@string/spoof_device"
+                app:dialogTitle="@string/spoof_device" />
+
+        <EditTextPreference
+                app:key="spoof_fingerprint"
+                app:title="@string/spoof_fingerprint"
+                app:dialogTitle="@string/spoof_fingerprint" />
 
     </PreferenceCategory>
 

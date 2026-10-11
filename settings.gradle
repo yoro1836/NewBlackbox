@@ -29,3 +29,5 @@ include ':app'
 include(":black-reflection")
 include(":compiler")
 include ':Bcore'
+include ':xptest'
+include ':vector'

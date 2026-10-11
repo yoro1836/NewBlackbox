@@ -1,0 +1,20 @@
+plugins {
+    alias(libs.plugins.android.application)
+}
+
+android {
+    namespace 'top.niunaijun.xptest'
+    compileSdk rootProject.ext.compileSdkVersion
+
+    defaultConfig {
+        applicationId "top.niunaijun.xptest"
+        minSdk rootProject.ext.minSdk
+        targetSdk rootProject.ext.targetSdkVersion
+        versionCode 1
+        versionName "1.0"
+    }
+}
+
+dependencies {
+    compileOnly project(':vector')
+}

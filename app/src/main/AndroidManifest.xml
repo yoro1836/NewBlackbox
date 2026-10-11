@@ -28,6 +28,8 @@
             android:exported="false" />
         <activity android:name=".view.setting.SettingActivity" />
         <activity android:name=".view.gms.GmsManagerActivity" />
+        <activity android:name=".view.xposed.XposedModulesActivity" />
+        <activity android:name=".view.xposed.XposedScopeActivity" />
         <activity
             android:name=".view.main.WelcomeActivity"
             android:exported="true"

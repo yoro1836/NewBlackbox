@@ -1,0 +1,19 @@
+BlackBox :vector module
+=======================
+
+This module embeds the ART method-hooking engine used by Vector (LSPosed fork) and is therefore
+distributed under the GNU General Public License v3 (see COPYING). Any build that includes this
+module must be distributed under GPL-3.0-compatible terms, including its corresponding source.
+
+Third-party components (sources are vendored under src/main/cpp/external and src/main/java):
+
+  Vector (https://github.com/JingMatrix/Vector)      GPL-3.0   ELF symbol resolver (vector_native),
+                                                                legacy Xposed API sources (de.robv.*)
+  LSPlant (https://github.com/JingMatrix/LSPlant)    LGPL-3.0  ART hooking library (external/lsplant)
+  Dobby (https://github.com/jmpews/Dobby)            Apache-2.0 inline hook library (external/dobby)
+  fmt (https://github.com/fmtlib/fmt)                MIT       formatting (external/fmt)
+  xz-embedded (https://tukaani.org/xz/embedded.html) Public domain / 0BSD (external/xz-embedded)
+  Apache Commons Lang (ClassUtilsX, MemberUtils)     Apache-2.0 org.apache.commons.lang3.*
+  XposedBridge API (rovo89)                          Apache-2.0 de.robv.android.xposed.* API shapes
+
+Each vendored directory keeps its own licence file where upstream provides one.
