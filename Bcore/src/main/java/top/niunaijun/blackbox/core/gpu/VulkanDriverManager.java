@@ -360,15 +360,21 @@ public final class VulkanDriverManager {
             String dir = info.path.getCanonicalPath();
             Slog.i(TAG, "Applying driver '" + info.name + "' (" + info.libraryName + ") to "
                     + packageName + " from " + dir);
-            // 1. adrenotools (as Winlator's Vulkan wrapper uses it): a private libvulkan
-            //    with the custom driver, handed to apps that dlopen("libvulkan.so").
-            boolean adrenotools = installAdrenotools(dir, info.libraryName);
-            // 2. GraphicsEnv updatable-driver path: covers apps that link libvulkan.so
-            //    directly, and every ABI adrenotools does not support.
+            // adrenotools (as Winlator's Vulkan wrapper uses it): a private libvulkan
+            // with the custom driver, handed to app code that dlopen("libvulkan.so").
+            // The system libvulkan, and with it HWUI's RenderThread, keeps the stock
+            // driver: a Mesa driver taking over UI rendering crashed RenderThread on
+            // an Exynos/Xclipse device with RADV.
+            if (installAdrenotools(dir, info.libraryName)) {
+                Slog.i(TAG, "Driver for " + packageName + ": adrenotools (app Vulkan only)");
+                return;
+            }
+            // Fallback where adrenotools is unavailable (non-arm64, open failure): the
+            // GraphicsEnv updatable-driver path, which swaps the process-wide driver.
             createHalAliases(new File(dir), info.libraryName);
             boolean graphicsEnv = setGraphicsEnvDriverPath(dir);
-            Slog.i(TAG, "Driver for " + packageName + ": adrenotools=" + adrenotools
-                    + " graphicsEnv=" + graphicsEnv);
+            Slog.i(TAG, "Driver for " + packageName + ": adrenotools unavailable, graphicsEnv="
+                    + graphicsEnv + " (process-wide, includes HWUI)");
         } catch (Throwable t) {
             Slog.w(TAG, "GPU driver apply failed, app continues on the system driver", t);
         }
