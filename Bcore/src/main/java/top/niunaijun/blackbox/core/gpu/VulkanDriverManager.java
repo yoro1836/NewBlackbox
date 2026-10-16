@@ -332,11 +332,13 @@ public final class VulkanDriverManager {
      */
     public static void apply(String packageName) {
         try {
-            if (!isSupported()) {
-                return;
-            }
             String id = getDriverForApp(packageName);
             if (TextUtils.isEmpty(id)) {
+                return;
+            }
+            if (!isSupported()) {
+                Slog.w(TAG, "Driver " + id + " assigned to " + packageName
+                        + " but API " + Build.VERSION.SDK_INT + " < " + MIN_API);
                 return;
             }
             DriverInfo info = getDriver(id);
@@ -348,11 +350,94 @@ public final class VulkanDriverManager {
                 Slog.w(TAG, "Driver library missing: " + info.libraryFile());
                 return;
             }
+            // The linker checks namespace paths against realpath(); /data/user/0 is a
+            // symlink to /data/data, so hand it the canonical directory.
+            String dir = info.path.getCanonicalPath();
+            Slog.i(TAG, "Applying driver '" + info.name + "' (" + info.libraryName + ") to "
+                    + packageName + " from " + dir);
+            createHalAliases(new File(dir), info.libraryName);
+            if (setGraphicsEnvDriverPath(dir)) {
+                Slog.i(TAG, "GraphicsEnv driver path set; libvulkan will load the custom "
+                        + "driver from it on first Vulkan use");
+                return;
+            }
+            // GraphicsEnv path unavailable: fall back to the native loader, which
+            // intercepts android_load_sphal_library (the Android 8/9 HAL load path).
             boolean ok = org.blackbox.vector.nativebridge.GpuBridge.loadDriver(
-                    info.path.getAbsolutePath(), info.libraryName, Build.VERSION.SDK_INT);
-            Slog.d(TAG, "GPU driver '" + info.name + "' for " + packageName + " loaded=" + ok);
+                    dir, info.libraryName, Build.VERSION.SDK_INT);
+            Slog.i(TAG, "Native fallback loader for " + packageName + " ok=" + ok);
         } catch (Throwable t) {
             Slog.w(TAG, "GPU driver apply failed, app continues on the system driver", t);
+        }
+    }
+
+    /**
+     * libvulkan only looks for {@code vulkan.<ro.hardware.vulkan>.so} (then
+     * {@code vulkan.<ro.board.platform>.so}) in the driver namespace, while driver
+     * packages ship e.g. {@code libvulkan_freedreno.so}. Link those names to it.
+     */
+    private static void createHalAliases(File dir, String libraryName) {
+        for (String prop : new String[]{"ro.hardware.vulkan", "ro.board.platform"}) {
+            String value = systemProperty(prop);
+            if (TextUtils.isEmpty(value)) {
+                continue;
+            }
+            String alias = "vulkan." + value + ".so";
+            if (alias.equals(libraryName)) {
+                continue;
+            }
+            File link = new File(dir, alias);
+            if (link.exists()) {
+                continue;
+            }
+            try {
+                android.system.Os.symlink(libraryName, link.getAbsolutePath());
+                Slog.i(TAG, "Linked " + alias + " -> " + libraryName);
+            } catch (Throwable t) {
+                Slog.w(TAG, "Cannot link " + alias + ", copying instead", t);
+                try {
+                    FileUtils.copyFile(new File(dir, libraryName), link);
+                } catch (Throwable copyError) {
+                    Slog.w(TAG, "Cannot create HAL alias " + alias, copyError);
+                }
+            }
+        }
+    }
+
+    /**
+     * Points libvulkan's updatable-driver namespace at {@code dir}. On Android 10+
+     * libvulkan tries this namespace before the system driver, and GraphicsEnv
+     * links it to the LLNDK libraries a Mesa driver depends on. It is ignored if a
+     * driver path was already set for the process, so call it before app code.
+     */
+    private static boolean setGraphicsEnvDriverPath(String dir) {
+        try {
+            Class<?> env = Class.forName("android.os.GraphicsEnvironment");
+            java.lang.reflect.Method method;
+            Object[] args;
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                method = env.getDeclaredMethod("setDriverPathAndSphalLibraries",
+                        String.class, String.class);
+                args = new Object[]{dir, ""};
+            } else {
+                method = env.getDeclaredMethod("setDriverPath", String.class);
+                args = new Object[]{dir};
+            }
+            method.setAccessible(true);
+            method.invoke(null, args);
+            return true;
+        } catch (Throwable t) {
+            Slog.w(TAG, "GraphicsEnvironment driver path API unavailable", t);
+            return false;
+        }
+    }
+
+    private static String systemProperty(String key) {
+        try {
+            Class<?> props = Class.forName("android.os.SystemProperties");
+            return (String) props.getMethod("get", String.class).invoke(null, key);
+        } catch (Throwable t) {
+            return null;
         }
     }
 }
