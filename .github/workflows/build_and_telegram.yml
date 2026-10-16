@@ -60,12 +60,25 @@ jobs:
           echo "black_reflection_path=$BLACK_REFLECTION_ART" >> $GITHUB_OUTPUT
           echo "compiler_path=$COMPILER_ART" >> $GITHUB_OUTPUT
 
+      # Every upload needs its own artifact name; without one they all use "artifact" and the
+      # second upload fails with "409 Conflict: an artifact with this name already exists".
       - name: Upload ALL Debug APKs
         uses: actions/upload-artifact@v7.0.2
         with:
-          path: ./app/build/outputs/apk/debug/*.apk 
+          name: blackbox-debug-apks
+          path: ./app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
 
       - name: Upload ALL Release APKs
         uses: actions/upload-artifact@v7.0.2
         with:
+          name: blackbox-release-apks
           path: ./app/build/outputs/apk/release/*.apk
+          if-no-files-found: error
+
+      - name: Upload Bcore AARs
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: bcore-aars
+          path: ./Bcore/build/outputs/aar/*.aar
+          if-no-files-found: warn
