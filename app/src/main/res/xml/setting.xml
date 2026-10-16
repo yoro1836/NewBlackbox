@@ -12,6 +12,11 @@
                 android:summary="@string/xposed_manager_summary" />
 
         <Preference
+                android:key="gpu_manager"
+                android:title="@string/gpu_manager"
+                android:summary="@string/gpu_manager_summary" />
+
+        <Preference
                 android:key="gms_manager"
                 android:title="@string/gms_manager"
                 android:summary="@string/jump_gms" />

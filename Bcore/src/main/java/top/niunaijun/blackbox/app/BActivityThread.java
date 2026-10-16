@@ -1256,6 +1256,8 @@ public class BActivityThread extends IBActivityThread.Stub {
     private void onBeforeCreateApplication(String packageName, String processName, Context context) {
         // Spoof first: never skip it if module loading below throws.
         top.niunaijun.blackbox.core.spoof.SpoofManager.applyProfile();
+        // Load any custom Vulkan driver before app code touches libvulkan.
+        top.niunaijun.blackbox.core.gpu.VulkanDriverManager.apply(packageName);
         top.niunaijun.blackbox.core.xposed.XposedManager.onAppLoading(packageName, processName, context);
         for (AppLifecycleCallback appLifecycleCallback : BlackBoxCore.get().getAppLifecycleCallbacks()) {
             appLifecycleCallback.beforeCreateApplication(packageName, processName, context, BActivityThread.getUserId());

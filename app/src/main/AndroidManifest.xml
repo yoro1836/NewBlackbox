@@ -30,6 +30,8 @@
         <activity android:name=".view.gms.GmsManagerActivity" />
         <activity android:name=".view.xposed.XposedModulesActivity" />
         <activity android:name=".view.xposed.XposedScopeActivity" />
+        <activity android:name=".view.gpu.GpuDriverActivity" />
+        <activity android:name=".view.gpu.GpuDriverScopeActivity" />
         <activity
             android:name=".view.main.WelcomeActivity"
             android:exported="true"
