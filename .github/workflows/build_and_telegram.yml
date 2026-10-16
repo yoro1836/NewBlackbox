@@ -33,6 +33,11 @@ jobs:
       - name: Accept Android SDK licenses
         run: yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || yes | $ANDROID_HOME/tools/bin/sdkmanager --licenses || true
 
+      - name: Install CMake and NDK
+        # Bcore builds Dobby for x86_64 with CMake 3.22.1, :vector needs CMake 3.31.6, and both
+        # modules pin NDK 29. The runner image does not ship these exact versions.
+        run: $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "cmake;3.22.1" "cmake;3.31.6" "ndk;29.0.13846066"
+
       - name: Grant execute permission for gradlew
         run: chmod +x ./gradlew
 
