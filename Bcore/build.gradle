@@ -231,8 +231,11 @@ def buildDobbyX86_64 = tasks.register("buildDobbyX86_64") {
 // AGP creates the externalNativeBuild tasks after this script is evaluated.
 // Attach the source build lazily so every native variant has the x86_64 archive.
 tasks.configureEach { task ->
-    if (task.name.toLowerCase(Locale.ROOT).contains("externalnativebuild") &&
-            !task.name.toLowerCase(Locale.ROOT).contains("clean")) {
+    // ndkBuild variants are named configureNdkBuild<Variant>[abi] / buildNdkBuild<Variant>[abi]
+    // (not "externalNativeBuild*"), and the x86_64 configure step already needs the archive.
+    def name = task.name.toLowerCase(Locale.ROOT)
+    if ((name.contains("externalnativebuild") || name.startsWith("configurendkbuild") ||
+            name.startsWith("buildndkbuild")) && !name.contains("clean")) {
         task.dependsOn(buildDobbyX86_64)
     }
 }
