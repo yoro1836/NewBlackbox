@@ -51,117 +51,12 @@ jobs:
           echo "black_reflection_path=$BLACK_REFLECTION_ART" >> $GITHUB_OUTPUT
           echo "compiler_path=$COMPILER_ART" >> $GITHUB_OUTPUT
 
-      - name: Send Bcore Debug AAR to Telegram and Pin
-        run: |
-          COMMIT_MSG=$(git log -1 --pretty=%s)
-          AAR_PATH="${{ steps.aar_paths.outputs.debug_aar_path }}"
-          if [ -n "$AAR_PATH" ] && [ -f "$AAR_PATH" ]; then
-            RESPONSE=$(curl -s -F document=@"$AAR_PATH" \
-                 -F chat_id="$TELEGRAM_CHAT_ID" \
-                 -F caption="[Bcore DEBUG AAR] $COMMIT_MSG" \
-                 https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/sendDocument)
-            MESSAGE_ID=$(echo $RESPONSE | jq '.result.message_id')
-            if [ "$MESSAGE_ID" != "null" ] && [ -n "$MESSAGE_ID" ]; then
-              curl -s -X POST "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/pinChatMessage" \
-                -d chat_id="$TELEGRAM_CHAT_ID" \
-                -d message_id="$MESSAGE_ID"
-            fi
-          else
-            echo "Debug AAR not found at $AAR_PATH"
-          fi
+      - name: Upload ALL Debug APKs
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          path: ./app/build/outputs/apk/debug/*.apk 
 
-      - name: Send Bcore Release AAR to Telegram and Pin
-        run: |
-          COMMIT_MSG=$(git log -1 --pretty=%s)
-          AAR_PATH="${{ steps.aar_paths.outputs.release_aar_path }}"
-          if [ -n "$AAR_PATH" ] && [ -f "$AAR_PATH" ]; then
-            RESPONSE=$(curl -s -F document=@"$AAR_PATH" \
-                 -F chat_id="$TELEGRAM_CHAT_ID" \
-                 -F caption="[Bcore RELEASE AAR] $COMMIT_MSG" \
-                 https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/sendDocument)
-            MESSAGE_ID=$(echo $RESPONSE | jq '.result.message_id')
-            if [ "$MESSAGE_ID" != "null" ] && [ -n "$MESSAGE_ID" ]; then
-              curl -s -X POST "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/pinChatMessage" \
-                -d chat_id="$TELEGRAM_CHAT_ID" \
-                -d message_id="$MESSAGE_ID"
-            fi
-          else
-            echo "Release AAR not found at $AAR_PATH"
-          fi
-
-      - name: Send black-reflection Artifact to Telegram and Pin
-        run: |
-          COMMIT_MSG=$(git log -1 --pretty=%s)
-          ART_PATH="${{ steps.additional_artifacts.outputs.black_reflection_path }}"
-          if [ -n "$ART_PATH" ] && [ -f "$ART_PATH" ]; then
-            FILENAME=$(basename "$ART_PATH")
-            RESPONSE=$(curl -s -F document=@"$ART_PATH" \
-                 -F chat_id="$TELEGRAM_CHAT_ID" \
-                 -F caption="[black-reflection] $FILENAME - $COMMIT_MSG" \
-                 https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/sendDocument)
-            MESSAGE_ID=$(echo $RESPONSE | jq '.result.message_id')
-            if [ "$MESSAGE_ID" != "null" ] && [ -n "$MESSAGE_ID" ]; then
-              curl -s -X POST "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/pinChatMessage" \
-                -d chat_id="$TELEGRAM_CHAT_ID" \
-                -d message_id="$MESSAGE_ID"
-            fi
-          else
-            echo "black-reflection artifact not found at $ART_PATH"
-          fi
-
-      - name: Send compiler Artifact to Telegram and Pin
-        run: |
-          COMMIT_MSG=$(git log -1 --pretty=%s)
-          ART_PATH="${{ steps.additional_artifacts.outputs.compiler_path }}"
-          if [ -n "$ART_PATH" ] && [ -f "$ART_PATH" ]; then
-            FILENAME=$(basename "$ART_PATH")
-            RESPONSE=$(curl -s -F document=@"$ART_PATH" \
-                 -F chat_id="$TELEGRAM_CHAT_ID" \
-                 -F caption="[compiler] $FILENAME - $COMMIT_MSG" \
-                 https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/sendDocument)
-            MESSAGE_ID=$(echo $RESPONSE | jq '.result.message_id')
-            if [ "$MESSAGE_ID" != "null" ] && [ -n "$MESSAGE_ID" ]; then
-              curl -s -X POST "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/pinChatMessage" \
-                -d chat_id="$TELEGRAM_CHAT_ID" \
-                -d message_id="$MESSAGE_ID"
-            fi
-          else
-            echo "compiler artifact not found at $ART_PATH"
-          fi
-
-      - name: Send ALL Debug APKs to Telegram and Pin
-        run: |
-          COMMIT_MSG=$(git log -1 --pretty=%s)
-          for APK in ./app/build/outputs/apk/debug/*.apk; do
-            if [ -f "$APK" ]; then
-              RESPONSE=$(curl -s -F document=@"$APK" \
-                   -F chat_id="$TELEGRAM_CHAT_ID" \
-                   -F caption="[DEBUG] $(basename $APK) $COMMIT_MSG" \
-                   https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/sendDocument)
-              MESSAGE_ID=$(echo $RESPONSE | jq '.result.message_id')
-              if [ "$MESSAGE_ID" != "null" ] && [ -n "$MESSAGE_ID" ]; then
-                curl -s -X POST "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/pinChatMessage" \
-                  -d chat_id="$TELEGRAM_CHAT_ID" \
-                  -d message_id="$MESSAGE_ID"
-              fi
-            fi
-          done
-
-      - name: Send ALL Release APKs to Telegram and Pin
-        run: |
-          COMMIT_MSG=$(git log -1 --pretty=%s)
-          for APK in ./app/build/outputs/apk/release/*.apk; do
-            if [ -f "$APK" ]; then
-              RESPONSE=$(curl -s -F document=@"$APK" \
-                   -F chat_id="$TELEGRAM_CHAT_ID" \
-                   -F caption="[RELEASE] $(basename $APK) $COMMIT_MSG" \
-                   https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/sendDocument)
-              MESSAGE_ID=$(echo $RESPONSE | jq '.result.message_id')
-              if [ "$MESSAGE_ID" != "null" ] && [ -n "$MESSAGE_ID" ]; then
-                curl -s -X POST "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/pinChatMessage" \
-                  -d chat_id="$TELEGRAM_CHAT_ID" \
-                  -d message_id="$MESSAGE_ID"
-              fi
-            fi
-          done
-
+      - name: Upload ALL Release APKs
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          path: ./app/build/outputs/apk/release/*.apk
