@@ -186,7 +186,14 @@ public class ActivityStack {
         }
 
         if (singleTop && !clearTop) {
-            if (ComponentUtils.intentFilterEquals(topActivityRecord.intent, intent)) {
+            // Android decides singleTop by the target component alone, not by the intent's
+            // action/data: a game relaunching itself with a bare component intent must reach the
+            // running instance through onNewIntent. Comparing intent filters made a relaunch of
+            // a MAIN/LAUNCHER-started activity create a second instance, which corrupts the
+            // game's native singletons (Asphalt 9 aborts with "NO_CONNECTED_SLOT").
+            if (topActivityRecord != null
+                    && (topActivityRecord.component.equals(ComponentUtils.toComponentName(activityInfo))
+                    || ComponentUtils.intentFilterEquals(topActivityRecord.intent, intent))) {
                 newIntentRecord = topActivityRecord;
             } else {
                 synchronized (mLaunchingActivities) {
