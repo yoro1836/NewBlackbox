@@ -221,6 +221,7 @@ public class IActivityManagerProxy extends ClassInvocationStub {
                             .field("provider")
                             .set(
                                     new ContentProviderStub()
+                                            .virtualProvider()
                                             .wrapper(
                                                     BRContentProviderNative.get().asInterface(providerBinder),
                                                     providerInfo.packageName));

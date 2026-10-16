@@ -20,13 +20,23 @@ public class AttributionSourceUtils {
      *                      withheld android_id: "Package top.niunaijun.blackbox is not approved").
      */
     public static void fixAttributionSourceInArgs(Object[] args, String callerPackage) {
+        fixAttributionSourceInArgs(args, callerPackage, BlackBoxCore.getHostUid());
+    }
+
+    /**
+     * @param uid uid to report as the source. The host uid is what the real system validates for
+     *            host and system providers; a provider hosted by another virtual process checks
+     *            the source against {@code Binder.getCallingUid()}, which BlackBox answers with
+     *            the virtual caller uid, so calls into those must carry the virtual uid.
+     */
+    public static void fixAttributionSourceInArgs(Object[] args, String callerPackage, int uid) {
         if (args == null) return;
 
         for (int i = 0; i < args.length; i++) {
             Object arg = args[i];
             if (arg != null && arg.getClass().getName().contains("AttributionSource")) {
                 try {
-                    fixAttributionSourceUid(arg, callerPackage);
+                    fixAttributionSourceUid(arg, callerPackage, uid);
                     Slog.d(TAG, "Fixed AttributionSource UID in method arguments");
                 } catch (Exception e) {
                     Slog.w(TAG, "Failed to fix AttributionSource in args: " + e.getMessage());
@@ -53,6 +63,11 @@ public class AttributionSourceUtils {
     }
 
     public static void fixAttributionSourceUid(Object attributionSource, String callerPackage) {
+        fixAttributionSourceUid(attributionSource, callerPackage, BlackBoxCore.getHostUid());
+    }
+
+    public static void fixAttributionSourceUid(Object attributionSource, String callerPackage,
+                                               int uidToReport) {
         final String pkgToReport = callerPackage != null ? callerPackage : BlackBoxCore.getHostPkg();
         try {
             if (attributionSource == null) return;
@@ -66,7 +81,7 @@ public class AttributionSourceUtils {
                 try {
                     java.lang.reflect.Field uidField = attributionSourceClass.getDeclaredField(fieldName);
                     uidField.setAccessible(true);
-                    uidField.set(attributionSource, BlackBoxCore.getHostUid());
+                    uidField.set(attributionSource, uidToReport);
                     Slog.d(TAG, "Fixed AttributionSource UID via field: " + fieldName);
                     break;
                 } catch (NoSuchFieldException e) {
@@ -78,7 +93,7 @@ public class AttributionSourceUtils {
             try {
                 java.lang.reflect.Method setUidMethod = attributionSourceClass.getDeclaredMethod("setUid", int.class);
                 setUidMethod.setAccessible(true);
-                setUidMethod.invoke(attributionSource, BlackBoxCore.getHostUid());
+                setUidMethod.invoke(attributionSource, uidToReport);
                 Slog.d(TAG, "Fixed AttributionSource UID via setter method");
             } catch (Exception e) {
                 
@@ -115,7 +130,7 @@ public class AttributionSourceUtils {
                         try {
                             java.lang.reflect.Field uidField = stateClass.getDeclaredField(fieldName);
                             uidField.setAccessible(true);
-                            uidField.set(state, BlackBoxCore.getHostUid());
+                            uidField.set(state, uidToReport);
                             Slog.d(TAG, "Fixed AttributionSourceState UID via field: " + fieldName);
                             uidFixed = true;
                             break;

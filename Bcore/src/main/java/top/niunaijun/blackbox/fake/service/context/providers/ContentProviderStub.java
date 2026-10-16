@@ -18,6 +18,27 @@ public class ContentProviderStub extends ClassInvocationStub implements BContent
     public static final String TAG = "ContentProviderStub";
     private IInterface mBase;
     private String mAppPkg;
+    private boolean mVirtualProvider;
+
+    /**
+     * Marks the wrapped provider as hosted by another virtual process. Such a provider validates
+     * the AttributionSource against Binder.getCallingUid(), which BlackBox answers with the
+     * virtual caller uid, so the source must carry that uid instead of the host uid.
+     */
+    public ContentProviderStub virtualProvider() {
+        mVirtualProvider = true;
+        return this;
+    }
+
+    private int senderUid() {
+        if (mVirtualProvider) {
+            int buid = BActivityThread.getBUid();
+            if (buid > 0) {
+                return buid;
+            }
+        }
+        return BlackBoxCore.getHostUid();
+    }
 
     public IInterface wrapper(final IInterface contentProviderProxy, final String appPkg) {
         mBase = contentProviderProxy;
@@ -59,7 +80,7 @@ public class ContentProviderStub extends ClassInvocationStub implements BContent
         final String callerPkg = isGservicesCall(args) ? BActivityThread.getAppPackageName() : null;
         if ("call".equals(methodName)) {
 
-            AttributionSourceUtils.fixAttributionSourceInArgs(args, callerPkg);
+            AttributionSourceUtils.fixAttributionSourceInArgs(args, callerPkg, senderUid());
         } else {
             
             if (args != null && args.length > 0) {
@@ -80,7 +101,7 @@ public class ContentProviderStub extends ClassInvocationStub implements BContent
                     }
                 }
 
-                AttributionSourceUtils.fixAttributionSourceInArgs(args, callerPkg);
+                AttributionSourceUtils.fixAttributionSourceInArgs(args, callerPkg, senderUid());
             }
         }
         

@@ -58,13 +58,13 @@ public class NativeCore {
                 return origCallingUid;
 
             if (origCallingUid == BlackBoxCore.getHostUid()) {
-                // AttributionSource validates its source uid against the real binder
-                // caller. Virtual callers send the host uid there, so answering with a
-                // virtual uid made every cross-virtual-app provider call throw
-                // "Calling uid X doesn't match source uid Y".
-                if (isInAttributionSourceCheck()) {
-                    return origCallingUid;
-                }
+                // This runs inside a hook of Binder.getCallingUid, which is a @CriticalNative
+                // method: ART calls it without a JNI transition, so the managed stack is not
+                // walkable here. Never create a Throwable or read a stack trace in this method;
+                // that crashed ART with SIGSEGV in StackVisitor::WalkStack (Play Store, GMS).
+                // AttributionSource validation is satisfied on the sending side instead:
+                // calls into virtual providers carry the virtual caller uid
+                // (see ContentProviderStub#virtualProvider).
 
                 String appPackageName = BlackBoxCore.getAppPackageName();
                 if (appPackageName != null && appPackageName.equals("com.google.android.gms")){
@@ -106,27 +106,6 @@ public class NativeCore {
                 }
                 
                 
-                try {
-                    StackTraceElement[] stackTrace = Thread.currentThread().getStackTrace();
-                    for (StackTraceElement element : stackTrace) {
-                        String className = element.getClassName();
-                        String methodName = element.getMethodName();
-                        
-                        
-                        if ((className.contains("Settings") || className.contains("FeatureFlag")) &&
-                            (methodName.contains("getString") || methodName.contains("getInt") || 
-                             methodName.contains("getLong") || methodName.contains("getFloat"))) {
-                            
-                            Log.d(TAG, "System settings access detected, using system UID to prevent mismatch");
-                            
-                            return Process.SYSTEM_UID; 
-                        }
-                    }
-                } catch (Exception e) {
-                    Log.w(TAG, "Error analyzing stack trace for UID resolution: " + e.getMessage());
-                }
-                
-                
                 return BlackBoxCore.getHostUid();
             }
             return origCallingUid;
@@ -137,14 +116,6 @@ public class NativeCore {
         }
     }
 
-    private static boolean isInAttributionSourceCheck() {
-        for (StackTraceElement element : new Throwable().getStackTrace()) {
-            if ("android.content.AttributionSource".equals(element.getClassName())) {
-                return true;
-            }
-        }
-        return false;
-    }
 
     @Keep
     public static String redirectPath(String path) {
