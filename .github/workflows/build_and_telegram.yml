@@ -25,6 +25,16 @@ jobs:
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
+        with:
+          # The default ("tools platform-tools") fails: the legacy "tools" package
+          # no longer exists in the SDK repository. Install what the build needs.
+          packages: >-
+            platform-tools
+            platforms;android-35
+            build-tools;35.0.0
+            ndk;29.0.13846066
+            cmake;3.22.1
+            cmake;3.31.6
 
       - name: Accept Android SDK licenses
         run: yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || yes | $ANDROID_HOME/tools/bin/sdkmanager --licenses || true
@@ -54,9 +64,11 @@ jobs:
       - name: Upload ALL Debug APKs
         uses: actions/upload-artifact@v7.0.2
         with:
-          path: ./app/build/outputs/apk/debug/*.apk 
+          name: debug-apks
+          path: ./app/build/outputs/apk/debug/*.apk
 
       - name: Upload ALL Release APKs
         uses: actions/upload-artifact@v7.0.2
         with:
+          name: release-apks
           path: ./app/build/outputs/apk/release/*.apk
