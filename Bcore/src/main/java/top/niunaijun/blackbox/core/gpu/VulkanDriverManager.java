@@ -334,6 +334,10 @@ public final class VulkanDriverManager {
     public static void apply(String packageName) {
         try {
             String id = getDriverForApp(packageName);
+            File conf = BEnvironment.getGpuAppConf();
+            Slog.i(TAG, "apply(" + packageName + ", pid " + android.os.Process.myPid()
+                    + "): driver=" + (TextUtils.isEmpty(id) ? "none" : id)
+                    + " conf=" + conf + " exists=" + (conf != null && conf.isFile()));
             if (TextUtils.isEmpty(id)) {
                 return;
             }
