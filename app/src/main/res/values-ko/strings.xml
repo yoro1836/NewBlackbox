@@ -11,4 +11,20 @@
     <string name="xposed_disabled">사용 안 함</string>
     <string name="xposed_scope_all_apps">모든 앱에 적용</string>
     <string name="xposed_scope_count">%d개 앱에 적용</string>
+
+    <string name="gpu_manager">GPU 드라이버 (Vulkan)</string>
+    <string name="gpu_manager_summary">앱별로 커스텀 Vulkan 드라이버(Turnip/PanVK)를 로드합니다</string>
+    <string name="gpu_no_drivers">가져온 드라이버가 없습니다. 위 메뉴에서 Turnip/PanVK 드라이버 패키지(.zip)를 가져오세요.</string>
+    <string name="gpu_import">드라이버 가져오기</string>
+    <string name="gpu_import_success">%s 가져옴</string>
+    <string name="gpu_import_failed">가져오기 실패: 올바른 드라이버 패키지가 아닙니다</string>
+    <string name="gpu_delete">삭제</string>
+    <string name="gpu_delete_confirm">이 드라이버를 삭제하고 모든 앱에서 할당을 해제할까요?</string>
+    <string name="gpu_driver_deleted">드라이버를 삭제했습니다</string>
+    <string name="gpu_scope">이 드라이버를 쓰는 앱</string>
+    <string name="gpu_scope_hint">체크한 앱은 시스템 드라이버 대신 이 Vulkan 드라이버를 사용합니다. 변경 후 앱을 다시 실행하세요. Android 9 이상과 기기 GPU·ABI에 맞는 드라이버가 필요합니다.</string>
+    <string name="gpu_scope_none">전체 해제</string>
+    <string name="gpu_applies_count">%d개 앱에서 사용</string>
+    <string name="gpu_applies_none">할당된 앱 없음</string>
+    <string name="gpu_unsupported">커스텀 Vulkan 드라이버는 Android 9 이상이 필요합니다.</string>
 </resources>

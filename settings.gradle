@@ -31,3 +31,4 @@ include(":compiler")
 include ':Bcore'
 include ':xptest'
 include ':vector'
+include ':gpudriver'

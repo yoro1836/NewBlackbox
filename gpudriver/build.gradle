@@ -1,0 +1,34 @@
+apply plugin: 'com.android.library'
+
+// Custom Vulkan driver loading (Mesa Turnip, PanVK, ...) for virtual apps.
+// Kept apart from :vector (the GPL LSPosed engine): this module bundles
+// libadrenotools (BSD-2-Clause). See NOTICE.
+android {
+    namespace 'org.blackbox.gpudriver'
+    compileSdk rootProject.ext.compileSdkVersion
+    ndkVersion "29.0.13846066"
+
+    defaultConfig {
+        minSdkVersion rootProject.ext.minSdk
+        ndk {
+            abiFilters 'arm64-v8a', 'armeabi-v7a', 'x86_64'
+        }
+        externalNativeBuild {
+            cmake {
+                arguments "-DANDROID_STL=c++_static"
+            }
+        }
+    }
+
+    externalNativeBuild {
+        cmake {
+            path 'src/main/cpp/CMakeLists.txt'
+            version '3.22.1'
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_21
+        targetCompatibility JavaVersion.VERSION_21
+    }
+}

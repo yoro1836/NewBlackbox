@@ -1,0 +1,9 @@
+gpudriver bundles the following third-party code:
+
+- libadrenotools (src/main/cpp/external/libadrenotools), including
+  linkernsbypass. Copyright (c) 2021, Billy Laws. BSD 2-Clause License, see
+  src/main/cpp/external/libadrenotools/LICENSE and
+  src/main/cpp/external/libadrenotools/lib/linkernsbypass/LICENSE.
+  Upstream: https://github.com/bylaws/libadrenotools, revision
+  8fae8ce254dfc1344527e05301e43f37dea2df80 (tools/ and build_asm.sh omitted).
+

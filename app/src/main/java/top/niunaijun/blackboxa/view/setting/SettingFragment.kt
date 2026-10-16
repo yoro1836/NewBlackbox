@@ -46,11 +46,19 @@ class SettingFragment : PreferenceFragmentCompat() {
         initSpoof()
         initGms()
         initXposed()
+        initGpu()
     }
 
     private fun initXposed() {
         findPreference<Preference>("xposed_manager")?.setOnPreferenceClickListener {
             top.niunaijun.blackboxa.view.xposed.XposedModulesActivity.start(requireContext())
+            true
+        }
+    }
+
+    private fun initGpu() {
+        findPreference<Preference>("gpu_manager")?.setOnPreferenceClickListener {
+            top.niunaijun.blackboxa.view.gpu.GpuDriverActivity.start(requireContext())
             true
         }
     }

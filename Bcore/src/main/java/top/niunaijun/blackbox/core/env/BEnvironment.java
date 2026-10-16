@@ -63,6 +63,16 @@ public class BEnvironment {
         return new File(getSystemDir(), "xposed-module.conf");
     }
 
+    /** Root directory holding imported custom GPU (Vulkan) driver packages. */
+    public static File getGpuDriverDir() {
+        return new File(getSystemDir(), "gpu_drivers");
+    }
+
+    /** Maps a virtual app package to the GPU driver id it should load. */
+    public static File getGpuAppConf() {
+        return new File(getSystemDir(), "gpu-app.conf");
+    }
+
     public static File getFakeLocationConf() {
         return new File(getSystemDir(), "fake-location.conf");
     }

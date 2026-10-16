@@ -85,4 +85,20 @@
     <string name="disable_gms">Disable Service</string>
     <string name="disable_gms_hint">Clear the current Google service environment? Google service data will be cleared.</string>
     <string name="no_gms">Currently, there is no Google service environment on mobile phones.</string>
+
+    <string name="gpu_manager">GPU Driver (Vulkan)</string>
+    <string name="gpu_manager_summary">Load a custom Vulkan driver (Turnip/PanVK) per app</string>
+    <string name="gpu_no_drivers">No drivers imported. Import a Turnip/PanVK driver package (.zip) with the menu above.</string>
+    <string name="gpu_import">Import driver</string>
+    <string name="gpu_import_success">Imported %s</string>
+    <string name="gpu_import_failed">Import failed: not a valid driver package</string>
+    <string name="gpu_delete">Remove</string>
+    <string name="gpu_delete_confirm">Remove this driver and unassign it from all apps?</string>
+    <string name="gpu_driver_deleted">Driver removed</string>
+    <string name="gpu_scope">Apps using this driver</string>
+    <string name="gpu_scope_hint">Checked apps use this Vulkan driver instead of the system one. Restart an app after changing. Requires Android 9+ and a driver built for this device\'s GPU and ABI.</string>
+    <string name="gpu_scope_none">Clear all</string>
+    <string name="gpu_applies_count">Used by %d app(s)</string>
+    <string name="gpu_applies_none">Not assigned to any app</string>
+    <string name="gpu_unsupported">Custom Vulkan drivers require Android 9 or newer.</string>
 </resources>

@@ -29,6 +29,18 @@ android {
         }
     }
 
+    signingConfigs {
+        // Checked-in debug key: CI runners otherwise generate a fresh
+        // ~/.android/debug.keystore every run, so each build had a different
+        // signature and could not be installed over the previous one.
+        debug {
+            storeFile file("debug.keystore")
+            storePassword "android"
+            keyAlias "androiddebugkey"
+            keyPassword "android"
+        }
+    }
+
     buildTypes {
         release {
             signingConfig signingConfigs.debug
@@ -48,6 +60,9 @@ android {
     }
     packaging {
         jniLibs {
+            // libadrenotools loads its hook libraries from nativeLibraryDir, so they
+            // must be extracted there rather than mapped from the APK.
+            useLegacyPackaging true
             excludes.add("**/libandroidx.graphics.path.so")
         }
         resources {
