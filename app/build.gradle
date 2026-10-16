@@ -59,6 +59,9 @@ android {
     }
     packaging {
         jniLibs {
+            // libadrenotools loads its hook libraries from nativeLibraryDir, so they
+            // must be extracted there rather than mapped from the APK.
+            useLegacyPackaging true
             excludes.add("**/libandroidx.graphics.path.so")
         }
         resources {

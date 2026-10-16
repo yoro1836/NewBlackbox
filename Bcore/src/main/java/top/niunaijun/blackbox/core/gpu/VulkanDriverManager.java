@@ -20,6 +20,7 @@ import java.util.Set;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
+import top.niunaijun.blackbox.BlackBoxCore;
 import top.niunaijun.blackbox.core.env.BEnvironment;
 import top.niunaijun.blackbox.utils.FileUtils;
 import top.niunaijun.blackbox.utils.Slog;
@@ -355,19 +356,37 @@ public final class VulkanDriverManager {
             String dir = info.path.getCanonicalPath();
             Slog.i(TAG, "Applying driver '" + info.name + "' (" + info.libraryName + ") to "
                     + packageName + " from " + dir);
+            // 1. adrenotools (as Winlator's Vulkan wrapper uses it): a private libvulkan
+            //    with the custom driver, handed to apps that dlopen("libvulkan.so").
+            boolean adrenotools = installAdrenotools(dir, info.libraryName);
+            // 2. GraphicsEnv updatable-driver path: covers apps that link libvulkan.so
+            //    directly, and every ABI adrenotools does not support.
             createHalAliases(new File(dir), info.libraryName);
-            if (setGraphicsEnvDriverPath(dir)) {
-                Slog.i(TAG, "GraphicsEnv driver path set; libvulkan will load the custom "
-                        + "driver from it on first Vulkan use");
-                return;
-            }
-            // GraphicsEnv path unavailable: fall back to the native loader, which
-            // intercepts android_load_sphal_library (the Android 8/9 HAL load path).
-            boolean ok = org.blackbox.vector.nativebridge.GpuBridge.loadDriver(
-                    dir, info.libraryName, Build.VERSION.SDK_INT);
-            Slog.i(TAG, "Native fallback loader for " + packageName + " ok=" + ok);
+            boolean graphicsEnv = setGraphicsEnvDriverPath(dir);
+            Slog.i(TAG, "Driver for " + packageName + ": adrenotools=" + adrenotools
+                    + " graphicsEnv=" + graphicsEnv);
         } catch (Throwable t) {
             Slog.w(TAG, "GPU driver apply failed, app continues on the system driver", t);
+        }
+    }
+
+    /**
+     * Opens the driver through libadrenotools with the same parameters Winlator's
+     * wrapper passes (hooks from nativeLibraryDir, driver dir + library name).
+     */
+    private static boolean installAdrenotools(String dir, String libraryName) {
+        try {
+            android.content.Context host = BlackBoxCore.getContext();
+            String hookDir = host == null ? null : host.getApplicationInfo().nativeLibraryDir;
+            if (hookDir == null || !new File(hookDir, "libmain_hook.so").isFile()) {
+                Slog.w(TAG, "adrenotools hook libraries not found in " + hookDir
+                        + " (non-arm64 build or libs not extracted)");
+                return false;
+            }
+            return org.blackbox.gpudriver.GpuBridge.install(hookDir, dir, libraryName);
+        } catch (Throwable t) {
+            Slog.w(TAG, "adrenotools driver load failed", t);
+            return false;
         }
     }
 

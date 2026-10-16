@@ -28,7 +28,6 @@ target_compile_options(lsplant_static PUBLIC
 # --- The JNI library itself.
 add_library(blackbox_vector SHARED
     bridge/lsp_bridge.cpp
-    bridge/gpu_bridge.cpp
     vector_native/src/elf/elf_image.cpp
     vector_native/src/elf/symbol_cache.cpp)
 

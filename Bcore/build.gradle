@@ -285,6 +285,8 @@ dependencies {
     // Xposed stays dormant (graceful, no crash).
     // Xposed engine (LSPlant, GPL-3.0): kept in its own module so its licence boundary is explicit.
     api project(':vector')
+    // Custom Vulkan driver loader (libadrenotools, BSD-2-Clause), separate from :vector.
+    implementation project(':gpudriver')
 
     
 }
