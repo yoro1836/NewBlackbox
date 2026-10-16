@@ -4,7 +4,7 @@
 // custom driver.
 //
 // Unlike an emulator, the app here was not written against that private copy, so
-// we also hand it to the app: ByteHook patches libdl.so's calls into the linker
+// we also hand it to the app: plt_hook patches libdl.so's calls into the linker
 // (__loader_dlopen / __loader_android_dlopen_ext, which carry the original caller
 // address, so no other load changes namespace) and answers requests for
 // "libvulkan.so" with the adrenotools handle. Apps that link libvulkan.so at
@@ -20,7 +20,7 @@
 
 #if BB_HAS_ADRENOTOOLS
 #include <adrenotools/driver.h>
-#include <bytehook.h>
+#include "plt_hook.h"
 #endif
 
 #define TAG "BBGpu"
@@ -43,60 +43,51 @@ bool isLibvulkan(const char *filename) {
     return strcmp(base, "libvulkan.so") == 0;
 }
 
+using LoaderDlopen = void *(*)(const char *, int, const void *);
+using LoaderDlopenExt = void *(*)(const char *, int, const void *, const void *);
+using LoaderDlclose = int (*)(void *);
+
+LoaderDlopen gOrigDlopen = nullptr;
+LoaderDlopenExt gOrigDlopenExt = nullptr;
+LoaderDlclose gOrigDlclose = nullptr;
+
 void *proxyLoaderDlopen(const char *filename, int flags, const void *caller) {
-    BYTEHOOK_STACK_SCOPE();
     if (gVulkan != nullptr && isLibvulkan(filename)) {
         LOGI("dlopen(%s) answered with the custom-driver libvulkan", filename);
         return gVulkan;
     }
-    return BYTEHOOK_CALL_PREV(proxyLoaderDlopen, filename, flags, caller);
+    return gOrigDlopen(filename, flags, caller);
 }
 
 void *proxyLoaderDlopenExt(const char *filename, int flags, const void *extinfo,
                            const void *caller) {
-    BYTEHOOK_STACK_SCOPE();
     if (gVulkan != nullptr && isLibvulkan(filename)) {
         LOGI("android_dlopen_ext(%s) answered with the custom-driver libvulkan", filename);
         return gVulkan;
     }
-    return BYTEHOOK_CALL_PREV(proxyLoaderDlopenExt, filename, flags, extinfo, caller);
+    return gOrigDlopenExt(filename, flags, extinfo, caller);
 }
 
 // Engines often probe Vulkan with dlopen + dlclose before using it for real; the
 // handle we hand out is shared, so closing it would unload the driver under them.
 int proxyLoaderDlclose(void *handle) {
-    BYTEHOOK_STACK_SCOPE();
     if (handle != nullptr && handle == gVulkan) {
         return 0;
     }
-    return BYTEHOOK_CALL_PREV(proxyLoaderDlclose, handle);
-}
-
-void onHooked(bytehook_stub_t, int status, const char *caller, const char *sym, void *, void *,
-              void *) {
-    if (status == BYTEHOOK_STATUS_CODE_OK) {
-        LOGI("hooked %s in %s", sym, caller);
-    } else {
-        LOGE("hooking %s in %s failed: %d", sym, caller, status);
-    }
+    return gOrigDlclose(handle);
 }
 
 bool installDlopenHooks() {
-    int status = bytehook_init(BYTEHOOK_MODE_AUTOMATIC, false);
-    if (status != BYTEHOOK_STATUS_CODE_OK) {
-        LOGE("bytehook_init failed: %d", status);
-        return false;
-    }
-    bool ok = bytehook_hook_single("libdl.so", nullptr, "__loader_dlopen",
-                                   reinterpret_cast<void *>(proxyLoaderDlopen), onHooked,
-                                   nullptr) != nullptr;
-    ok = bytehook_hook_single("libdl.so", nullptr, "__loader_android_dlopen_ext",
-                              reinterpret_cast<void *>(proxyLoaderDlopenExt), onHooked,
-                              nullptr) != nullptr && ok;
-    ok = bytehook_hook_single("libdl.so", nullptr, "__loader_dlclose",
-                              reinterpret_cast<void *>(proxyLoaderDlclose), onHooked,
-                              nullptr) != nullptr && ok;
-    return ok;
+    PltHook hooks[] = {
+            {"__loader_dlopen", reinterpret_cast<void *>(proxyLoaderDlopen),
+             reinterpret_cast<void **>(&gOrigDlopen)},
+            {"__loader_android_dlopen_ext", reinterpret_cast<void *>(proxyLoaderDlopenExt),
+             reinterpret_cast<void **>(&gOrigDlopenExt)},
+            {"__loader_dlclose", reinterpret_cast<void *>(proxyLoaderDlclose),
+             reinterpret_cast<void **>(&gOrigDlclose)},
+    };
+    const size_t count = sizeof(hooks) / sizeof(hooks[0]);
+    return PatchPlt("libdl.so", hooks, count) == count;
 }
 
 std::string withSlash(const char *dir) {
@@ -106,8 +97,6 @@ std::string withSlash(const char *dir) {
     }
     return out;
 }
-
-#endif  // BB_HAS_ADRENOTOOLS
 
 std::string toString(JNIEnv *env, jstring value) {
     if (value == nullptr) {
@@ -120,6 +109,8 @@ std::string toString(JNIEnv *env, jstring value) {
     }
     return out;
 }
+
+#endif  // BB_HAS_ADRENOTOOLS
 
 }  // namespace
 

@@ -15,7 +15,7 @@ target_compile_options(blackbox_gpu PRIVATE -fvisibility=hidden -fno-rtti -fno-e
 # instructions). Other ABIs build the bridge alone and report "unsupported".
 if(ANDROID_ABI STREQUAL "arm64-v8a")
     add_subdirectory(external/libadrenotools)
-    find_package(bytehook REQUIRED CONFIG)
+    target_sources(blackbox_gpu PRIVATE plt_hook.cpp)
     target_compile_definitions(blackbox_gpu PRIVATE BB_HAS_ADRENOTOOLS=1)
-    target_link_libraries(blackbox_gpu PRIVATE adrenotools bytehook::bytehook)
+    target_link_libraries(blackbox_gpu PRIVATE adrenotools)
 endif()
