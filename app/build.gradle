@@ -22,8 +22,9 @@ android {
                 enable true
                 reset()
                 
-                include 'armeabi-v7a', "arm64-v8a", "x86_64"
-                universalApk true
+                include(*rootProject.ext.abis)
+                // A universal APK only adds something when several ABIs are built.
+                universalApk rootProject.ext.abis.size() > 1
             }
         }
     }

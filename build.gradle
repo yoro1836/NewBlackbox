@@ -14,4 +14,9 @@ ext {
     versionName = "4.0.0"
     xVersion = '1.1.0'
     hiddenApiBypass = '4.3'
+
+    // ABIs to build native code and APKs for. CI passes -Pabis=arm64-v8a to build only that.
+    // Comma separated, e.g. -Pabis=arm64-v8a,x86_64. Defaults to every supported ABI.
+    abis = (findProperty('abis') ?: 'arm64-v8a,armeabi-v7a,x86_64')
+            .toString().split(',').collect { it.trim() }.findAll { !it.isEmpty() }
 }

@@ -25,7 +25,7 @@ android {
         consumerProguardFiles "consumer-rules.pro"
         ndk {
             
-            abiFilters 'arm64-v8a' , 'armeabi-v7a', 'x86_64'
+            abiFilters.addAll(rootProject.ext.abis)
         }
         externalNativeBuild {
             ndkBuild {
@@ -234,7 +234,9 @@ tasks.configureEach { task ->
     // ndkBuild variants are named configureNdkBuild<Variant>[abi] / buildNdkBuild<Variant>[abi]
     // (not "externalNativeBuild*"), and the x86_64 configure step already needs the archive.
     def name = task.name.toLowerCase(Locale.ROOT)
-    if ((name.contains("externalnativebuild") || name.startsWith("configurendkbuild") ||
+    // The x86_64 archive is only needed when x86_64 is among the ABIs being built.
+    if (rootProject.ext.abis.contains('x86_64') &&
+            (name.contains("externalnativebuild") || name.startsWith("configurendkbuild") ||
             name.startsWith("buildndkbuild")) && !name.contains("clean")) {
         task.dependsOn(buildDobbyX86_64)
     }

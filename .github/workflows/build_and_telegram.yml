@@ -73,9 +73,10 @@ jobs:
         run: chmod +x ./gradlew
 
       - name: Build APKs and AARs
-        # --build-cache reuses compile/dex/resource task outputs from earlier runs; the Gradle
-        # home itself is cached by setup-java above.
-        run: ./gradlew --build-cache assembleDebug assembleRelease :Bcore:assembleDebug :Bcore:assembleRelease :black-reflection:assemble :compiler:assemble
+        # -Pabis=arm64-v8a builds the native code and APK for that ABI only (about a third of the
+        # work, and no x86_64 Dobby build). --build-cache reuses compile/dex/resource task
+        # outputs from earlier runs; the Gradle home itself is cached by setup-java above.
+        run: ./gradlew --build-cache -Pabis=arm64-v8a assembleDebug assembleRelease :Bcore:assembleDebug :Bcore:assembleRelease :black-reflection:assemble :compiler:assemble
 
       - name: Find Bcore AAR paths
         id: aar_paths
