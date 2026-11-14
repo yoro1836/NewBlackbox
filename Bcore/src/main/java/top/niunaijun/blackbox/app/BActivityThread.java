@@ -451,6 +451,9 @@ public class BActivityThread extends IBActivityThread.Stub {
         }
         Application application;
         try {
+            if ("com.google.android.gms".equals(packageName)) {
+                top.niunaijun.blackbox.core.gms.GmsModuleConfigFix.apply(getUserId());
+            }
             onBeforeCreateApplication(packageName, processName, packageContext);
             
             
