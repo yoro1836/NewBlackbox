@@ -787,6 +787,43 @@ public class IActivityManagerProxy extends ClassInvocationStub {
         }
     }
 
+    /**
+     * Android 12+ answers PendingIntent.getCreatorPackage()/getCreatorUid() through
+     * getInfoForIntentSender. Unhooked it named the host package, so GMS's NetworkScheduler
+     * looked for virtual GMS task services under the host ("Error finding compatible
+     * intent-filter ... io.github.../com.google.android.gms...") and its periodic tasks
+     * (Phenotype sync, module downloads) never ran.
+     */
+    @ProxyMethod("getInfoForIntentSender")
+    public static class GetInfoForIntentSender extends MethodHook {
+        @Override
+        protected Object hook(Object who, Method method, Object[] args) throws Throwable {
+            Object info = method.invoke(who, args);
+            if (info == null || !(args[0] instanceof IInterface)) {
+                return info;
+            }
+            IBinder target = ((IInterface) args[0]).asBinder();
+            String pkg = BlackBoxCore.getBActivityManager().getPackageForIntentSender(target);
+            if (pkg == null) {
+                return info;
+            }
+            int uid = BlackBoxCore.getBActivityManager().getUidForIntentSender(target);
+            try {
+                java.lang.reflect.Field f = info.getClass().getDeclaredField("mCreatorPackage");
+                f.setAccessible(true);
+                f.set(info, pkg);
+                if (uid >= 0) {
+                    java.lang.reflect.Field u = info.getClass().getDeclaredField("mCreatorUid");
+                    u.setAccessible(true);
+                    u.setInt(info, uid);
+                }
+            } catch (Throwable e) {
+                Slog.w(TAG, "getInfoForIntentSender rewrite failed: " + e);
+            }
+            return info;
+        }
+    }
+
     @ProxyMethod("getUidForIntentSender")
     public static class getUidForIntentSender extends MethodHook {
         @Override
