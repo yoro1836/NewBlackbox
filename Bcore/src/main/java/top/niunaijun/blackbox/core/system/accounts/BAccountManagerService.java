@@ -1770,7 +1770,19 @@ public class BAccountManagerService extends IBAccountManagerService.Stub impleme
             }
             int flags = Context.BIND_AUTO_CREATE;
 
-
+            // The authenticator lives in the virtual space (often not exported,
+            // like Google's). Bind its stub service there; binding the component
+            // straight away reaches the host copy and is denied.
+            try {
+                Intent stub = top.niunaijun.blackbox.core.system.am.BActivityManagerService.get()
+                        .bindService(new Intent(intent), null, null, mAccounts.userId);
+                if (stub != null && stub.getComponent() != null
+                        && mContext.getPackageName().equals(stub.getComponent().getPackageName())) {
+                    intent = stub;
+                }
+            } catch (Throwable e) {
+                Log.w(TAG, "virtual bind to " + componentName + " failed", e);
+            }
 
             if (!mContext.bindService(intent, this, flags)) {
                 if (Log.isLoggable(TAG, Log.VERBOSE)) {
