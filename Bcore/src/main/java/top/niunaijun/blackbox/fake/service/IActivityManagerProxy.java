@@ -1015,7 +1015,8 @@ public class IActivityManagerProxy extends ClassInvocationStub {
     public static class CheckPermissionForDevice extends MethodHook {
         @Override
         protected Object hook(Object who, Method method, Object[] args) throws Throwable {
-            if (Manifest.permission.ACCOUNT_MANAGER.equals(args[0])) {
+            if (Manifest.permission.ACCOUNT_MANAGER.equals(args[0])
+                    || "android.permission.BACKUP".equals(args[0])) {
                 return PackageManager.PERMISSION_GRANTED;
             }
             if (args.length >= 1
@@ -1044,8 +1045,11 @@ public class IActivityManagerProxy extends ClassInvocationStub {
                     throw t;
                 }
             }
+            // BACKUP: Android 17's BackupManager checks it before the (hooked, "off")
+            // backup service, and GMS's setup screen crashes on the denial.
             if (permission.equals(Manifest.permission.ACCOUNT_MANAGER)
-                    || permission.equals(Manifest.permission.SEND_SMS)) {
+                    || permission.equals(Manifest.permission.SEND_SMS)
+                    || permission.equals("android.permission.BACKUP")) {
                 return PackageManager.PERMISSION_GRANTED;
             }
             

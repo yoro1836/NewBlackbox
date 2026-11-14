@@ -91,7 +91,8 @@ public class IPermissionManagerProxy extends BinderInvocationStub {
         protected Object hook(Object who, Method method, Object[] args) throws Throwable {
             try {
                 if (args != null && args.length >= 1
-                        && android.Manifest.permission.ACCESS_NETWORK_STATE.equals(args[0])) {
+                        && (android.Manifest.permission.ACCESS_NETWORK_STATE.equals(args[0])
+                        || "android.permission.BACKUP".equals(args[0]))) {
                     Slog.d(TAG, "Granting ACCESS_NETWORK_STATE to virtual caller");
                     return PackageManager.PERMISSION_GRANTED;
                 }
