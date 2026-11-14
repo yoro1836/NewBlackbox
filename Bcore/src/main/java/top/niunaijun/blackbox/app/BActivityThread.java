@@ -451,9 +451,8 @@ public class BActivityThread extends IBActivityThread.Stub {
         }
         Application application;
         try {
-            if ("com.google.android.gms".equals(packageName)) {
-                top.niunaijun.blackbox.core.gms.GmsModuleConfigFix.apply(getUserId());
-            }
+            boolean gmsRecheck = "com.google.android.gms".equals(packageName)
+                    && top.niunaijun.blackbox.core.gms.GmsModuleConfigFix.apply(getUserId());
             onBeforeCreateApplication(packageName, processName, packageContext);
             
             
@@ -510,6 +509,9 @@ public class BActivityThread extends IBActivityThread.Stub {
             onBeforeApplicationOnCreate(packageName, processName, application);
             AppInstrumentation.get().callApplicationOnCreate(application);
             onAfterApplicationOnCreate(packageName, processName, application);
+            if (gmsRecheck) {
+                top.niunaijun.blackbox.core.gms.GmsModuleConfigFix.requestRecheck(application);
+            }
 
             HookManager.get().checkEnv(HCallbackProxy.class);
         } catch (Exception e) {

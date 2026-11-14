@@ -1,5 +1,10 @@
 package top.niunaijun.blackbox.core.gms;
 
+import android.content.Context;
+import android.content.Intent;
+import android.os.Handler;
+import android.os.Looper;
+
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileOutputStream;
@@ -26,16 +31,47 @@ public final class GmsModuleConfigFix {
     private GmsModuleConfigFix() {
     }
 
-    public static void apply(int userId) {
-        patch(new File(BEnvironment.getDeDataDir(GMS, userId), "app_chimera/stored_modulesets.pb"));
-        patch(new File(BEnvironment.getDataDir(GMS, userId), "app_chimera/stored_modulesets.pb"));
+    /** Returns true when a config was changed and GMS should recheck its modules. */
+    public static boolean apply(int userId) {
+        boolean a = patch(new File(BEnvironment.getDeDataDir(GMS, userId), "app_chimera/stored_modulesets.pb"));
+        boolean b = patch(new File(BEnvironment.getDataDir(GMS, userId), "app_chimera/stored_modulesets.pb"));
+        // Builds that patched the file without asking for a recheck left it patched but
+        // unused; ask once more per marker version.
+        boolean first = false;
+        try {
+            File marker = new File(BEnvironment.getDeDataDir(GMS, userId), "app_chimera/.bb_recheck_1");
+            first = marker.getParentFile().isDirectory() && marker.createNewFile();
+        } catch (Throwable ignored) {
+        }
+        return a || b || first;
     }
 
-    private static void patch(File f) {
+    /**
+     * Only ChimeraConfigurator's config update downloads modules (via Play Store's Zapp), and
+     * it runs on container events that the virtual GMS rarely sees. Ask for one, as the
+     * system does when requested features change.
+     */
+    public static void requestRecheck(final Context context) {
+        new Handler(Looper.getMainLooper()).postDelayed(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    Intent i = new Intent("com.google.android.chimera.container.REQUESTED_FEATURES_CHANGED")
+                            .setClassName(GMS, "com.google.android.gms.chimera.GmsIntentOperationService");
+                    context.startService(i);
+                    Slog.i(TAG, "asked GMS to recheck chimera modules");
+                } catch (Throwable e) {
+                    Slog.w(TAG, "chimera recheck request failed: " + e);
+                }
+            }
+        }, 5000);
+    }
+
+    private static boolean patch(File f) {
         try {
             if (!f.isFile()) {
                 Slog.d(TAG, "no config at " + f);
-                return;
+                return false;
             }
             byte[] in = Files.readAllBytes(f.toPath());
             ByteArrayOutputStream out = new ByteArrayOutputStream(in.length + 2);
@@ -68,11 +104,11 @@ public final class GmsModuleConfigFix {
                         break;
                     default:
                         Slog.w(TAG, "unknown wire type " + wire + " in " + f);
-                        return;
+                        return false;
                 }
                 if (p > in.length) {
                     Slog.w(TAG, "truncated " + f);
-                    return;
+                    return false;
                 }
                 if (field == FIELD && wire == 0) {
                     if (value == 0) alreadyOff = true;
@@ -82,7 +118,7 @@ public final class GmsModuleConfigFix {
             }
             if (alreadyOff) {
                 Slog.d(TAG, "optional chimera modules already enabled in " + f);
-                return;
+                return false;
             }
             out.write(FIELD << 3);
             out.write(0);
@@ -94,11 +130,13 @@ public final class GmsModuleConfigFix {
             if (!tmp.renameTo(f)) {
                 tmp.delete();
                 Slog.w(TAG, "rename failed for " + f);
-                return;
+                return false;
             }
             Slog.i(TAG, "enabled optional chimera module downloads in " + f);
+            return true;
         } catch (Throwable e) {
             Slog.w(TAG, "patch " + f + " failed: " + e);
+            return false;
         }
     }
 
