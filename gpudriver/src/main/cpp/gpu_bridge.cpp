@@ -115,6 +115,68 @@ std::string toString(JNIEnv *env, jstring value) {
 }  // namespace
 
 extern "C" JNIEXPORT jboolean JNICALL
+Java_org_blackbox_gpudriver_GpuBridge_nativeInstallWrapper(JNIEnv *env, jclass, jstring jWrapper,
+                                                           jstring jConfig, jstring jHookDir,
+                                                           jstring jDriverDir,
+                                                           jstring jDriverName) {
+#if BB_HAS_ADRENOTOOLS
+    if (gVulkan != nullptr) {
+        return JNI_TRUE;
+    }
+    std::string wrapperPath = toString(env, jWrapper);
+    std::string config = toString(env, jConfig);
+    // The real libvulkan the wrapper forwards to; opened before the hooks exist.
+    void *real = nullptr;
+    if (jDriverDir != nullptr && jDriverName != nullptr && jHookDir != nullptr &&
+        android_get_device_api_level() >= 28) {
+        std::string hookDir = withSlash(toString(env, jHookDir).c_str());
+        std::string driverDir = withSlash(toString(env, jDriverDir).c_str());
+        std::string driverName = toString(env, jDriverName);
+        real = adrenotools_open_libvulkan(RTLD_NOW, ADRENOTOOLS_DRIVER_CUSTOM, nullptr,
+                                          hookDir.c_str(), driverDir.c_str(), driverName.c_str(),
+                                          nullptr, nullptr);
+        if (real == nullptr) {
+            LOGE("adrenotools_open_libvulkan failed (%s); wrapping the system driver", dlerror());
+        }
+    }
+    if (real == nullptr) {
+        real = dlopen("libvulkan.so", RTLD_NOW | RTLD_LOCAL);
+    }
+    if (real == nullptr) {
+        LOGE("no libvulkan to wrap: %s", dlerror());
+        return JNI_FALSE;
+    }
+    void *wrapper = dlopen(wrapperPath.c_str(), RTLD_NOW | RTLD_LOCAL);
+    if (wrapper == nullptr) {
+        LOGE("wrapper %s: %s", wrapperPath.c_str(), dlerror());
+        return JNI_FALSE;
+    }
+    using Init = bool (*)(void *, const char *);
+    auto init = reinterpret_cast<Init>(dlsym(wrapper, "bb_vulkan_wrapper_init"));
+    if (init == nullptr || !init(real, config.c_str())) {
+        LOGE("wrapper %s did not initialise", wrapperPath.c_str());
+        return JNI_FALSE;
+    }
+    gVulkan = wrapper;
+    if (!installDlopenHooks()) {
+        LOGE("dlopen hooks incomplete; apps that dlopen libvulkan.so may bypass the wrapper");
+        return JNI_FALSE;
+    }
+    LOGI("Vulkan wrapper %s ready; libvulkan.so requests now resolve to it", wrapperPath.c_str());
+    return JNI_TRUE;
+#else
+    (void) env;
+    (void) jWrapper;
+    (void) jConfig;
+    (void) jHookDir;
+    (void) jDriverDir;
+    (void) jDriverName;
+    LOGE("Vulkan wrappers need the arm64 build");
+    return JNI_FALSE;
+#endif
+}
+
+extern "C" JNIEXPORT jboolean JNICALL
 Java_org_blackbox_gpudriver_GpuBridge_nativeInstall(JNIEnv *env, jclass, jstring jHookDir,
                                                     jstring jDriverDir, jstring jDriverName) {
 #if BB_HAS_ADRENOTOOLS

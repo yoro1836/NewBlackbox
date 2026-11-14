@@ -26,5 +26,25 @@ public final class GpuBridge {
         return nativeInstall(hookDir, driverDir, driverName);
     }
 
+    /**
+     * Makes the virtual app's {@code dlopen("libvulkan.so")} resolve to a wrapper
+     * library. The wrapper gets the real libvulkan handle (the custom driver's when
+     * driverDir/driverName are given, else the system one) through its exported
+     * {@code bb_vulkan_wrapper_init(void *real, const char *config)}.
+     */
+    public static synchronized boolean installWrapper(String wrapperPath, String config,
+                                                      String hookDir, String driverDir,
+                                                      String driverName) {
+        if (!sLoaded) {
+            System.loadLibrary("blackbox_gpu");
+            sLoaded = true;
+        }
+        return nativeInstallWrapper(wrapperPath, config, hookDir, driverDir, driverName);
+    }
+
+    private static native boolean nativeInstallWrapper(String wrapperPath, String config,
+                                                       String hookDir, String driverDir,
+                                                       String driverName);
+
     private static native boolean nativeInstall(String hookDir, String driverDir, String driverName);
 }

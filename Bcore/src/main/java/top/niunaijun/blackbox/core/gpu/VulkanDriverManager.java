@@ -324,6 +324,27 @@ public final class VulkanDriverManager {
         return out;
     }
 
+    // ------------------------------------------------------------- wrapper
+
+    /**
+     * Lets the host wrap a virtual app's Vulkan (e.g. frame generation at
+     * present time). Set it in every process (from Application.attachBaseContext):
+     * {@link #apply(String)} asks it inside the virtual app process.
+     */
+    public interface WrapperProvider {
+        /** Absolute path of the wrapper library for this app, or null for none. */
+        String wrapperFor(String packageName);
+
+        /** Free-form configuration handed to the wrapper's init function. */
+        String wrapperConfig(String packageName);
+    }
+
+    private static volatile WrapperProvider sWrapperProvider;
+
+    public static void setWrapperProvider(WrapperProvider provider) {
+        sWrapperProvider = provider;
+    }
+
     // ----------------------------------------------------------------- apply
 
     /**
@@ -332,6 +353,17 @@ public final class VulkanDriverManager {
      * Never throws.
      */
     public static void apply(String packageName) {
+        String wrapper = null;
+        try {
+            WrapperProvider provider = sWrapperProvider;
+            wrapper = provider == null ? null : provider.wrapperFor(packageName);
+            if (wrapper != null) {
+                applyWithWrapper(packageName, wrapper, provider.wrapperConfig(packageName));
+                return;
+            }
+        } catch (Throwable t) {
+            Slog.w(TAG, "Vulkan wrapper failed for " + packageName + ", trying the driver alone", t);
+        }
         try {
             String id = getDriverForApp(packageName);
             File conf = BEnvironment.getGpuAppConf();
@@ -378,6 +410,25 @@ public final class VulkanDriverManager {
         } catch (Throwable t) {
             Slog.w(TAG, "GPU driver apply failed, app continues on the system driver", t);
         }
+    }
+
+    /** The wrapper over the assigned custom driver (adrenotools) or the system driver. */
+    private static void applyWithWrapper(String packageName, String wrapper, String config)
+            throws IOException {
+        String driverDir = null;
+        String driverLib = null;
+        String id = getDriverForApp(packageName);
+        DriverInfo info = TextUtils.isEmpty(id) || !isSupported() ? null : getDriver(id);
+        if (info != null && info.libraryFile().isFile()) {
+            driverDir = info.path.getCanonicalPath();
+            driverLib = info.libraryName;
+        }
+        android.content.Context host = BlackBoxCore.getContext();
+        String hookDir = host == null ? null : host.getApplicationInfo().nativeLibraryDir;
+        boolean ok = org.blackbox.gpudriver.GpuBridge.installWrapper(wrapper,
+                config == null ? "" : config, hookDir, driverDir, driverLib);
+        Slog.i(TAG, "Vulkan wrapper for " + packageName + ": " + (ok ? "active" : "failed")
+                + " over " + (driverLib == null ? "the system driver" : driverLib));
     }
 
     /**
