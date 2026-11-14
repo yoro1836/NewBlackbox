@@ -1096,7 +1096,10 @@ public class BAccountManagerService extends IBAccountManagerService.Stub impleme
         if (AccountManager.VISIBILITY_UNDEFINED != visibility) {
             return visibility;
         }
-        return AccountManager.VISIBILITY_NOT_VISIBLE;
+        // No entry: visible, like isVisibleToPackage (and the platform for apps with
+        // GET_ACCOUNTS). Defaulting to hidden hid the account from GMS itself once its
+        // visibility entries were gone ("Account not found in AccountManager").
+        return AccountManager.VISIBILITY_VISIBLE;
     }
 
     
