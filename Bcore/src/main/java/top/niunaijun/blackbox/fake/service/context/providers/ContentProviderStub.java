@@ -113,7 +113,11 @@ public class ContentProviderStub extends ClassInvocationStub implements BContent
             
             
             try {
-                return method.invoke(mBase, args);
+                Object r = method.invoke(mBase, args);
+                if ("query".equals(methodName) && isGservicesCall(args)) {
+                    r = GservicesOverrides.apply(args, r);
+                }
+                return r;
             } catch (Throwable e) {
                 Throwable cause = e.getCause();
                 if (isUidMismatchError(cause)) {
