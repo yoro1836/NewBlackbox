@@ -43,6 +43,23 @@ public class BJobManagerService extends IBJobManagerService.Stub implements ISys
             return info;
         }
         ServiceInfo serviceInfo = resolveInfo.serviceInfo;
+        // Route to the server-process job service, which binds the virtual JobService
+        // when the job fires (see VirtualJobService). The target rides in the extras, which
+        // JobScheduler persists, so it survives the app's process and ours.
+        try {
+            android.os.PersistableBundle extras = new android.os.PersistableBundle(info.getExtras());
+            extras.putString(top.niunaijun.blackbox.proxy.VirtualJobService.EXTRA_PKG, serviceInfo.packageName);
+            extras.putString(top.niunaijun.blackbox.proxy.VirtualJobService.EXTRA_CLS, serviceInfo.name);
+            extras.putInt(top.niunaijun.blackbox.proxy.VirtualJobService.EXTRA_USER, userId);
+            java.lang.reflect.Field f = JobInfo.class.getDeclaredField("extras");
+            f.setAccessible(true);
+            f.set(info, extras);
+            BRJobInfo.get(info)._set_service(new ComponentName(BlackBoxCore.getHostPkg(),
+                    top.niunaijun.blackbox.proxy.VirtualJobService.class.getName()));
+            return info;
+        } catch (Throwable e) {
+            android.util.Log.w("BJobManagerService", "virtual job routing failed, using process slot", e);
+        }
         ProcessRecord processRecord = BProcessManagerService.get().findProcessRecord(serviceInfo.packageName, serviceInfo.processName, userId);
         if (processRecord == null) {
             processRecord = BProcessManagerService.get().
