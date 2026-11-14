@@ -46,6 +46,13 @@ public class IJobServiceProxy extends BinderInvocationStub {
                     return 0; 
                 }
                 
+                // Android 14+: (String namespace, JobInfo job, ...); namespace is usually null.
+                if (args.length >= 2 && !(args[0] instanceof JobInfo) && args[1] instanceof JobInfo) {
+                    JobInfo proxyJobInfo = BlackBoxCore.getBJobManager().schedule((JobInfo) args[1]);
+                    if (proxyJobInfo != null) args[1] = proxyJobInfo;
+                    return method.invoke(who, args);
+                }
+
                 if (args[0] == null) {
                     Slog.w(TAG, "Schedule: args[0] is null, returning RESULT_FAILURE");
                     return 0; 
@@ -222,6 +229,13 @@ public class IJobServiceProxy extends BinderInvocationStub {
                     return 0; 
                 }
                 
+                // Android 14+: (String namespace, JobInfo job, ...); namespace is usually null.
+                if (args.length >= 2 && !(args[0] instanceof JobInfo) && args[1] instanceof JobInfo) {
+                    JobInfo proxyJobInfo = BlackBoxCore.getBJobManager().schedule((JobInfo) args[1]);
+                    if (proxyJobInfo != null) args[1] = proxyJobInfo;
+                    return method.invoke(who, args);
+                }
+
                 if (args[0] == null) {
                     Slog.w(TAG, "Enqueue: args[0] is null, returning RESULT_FAILURE");
                     return 0; 
