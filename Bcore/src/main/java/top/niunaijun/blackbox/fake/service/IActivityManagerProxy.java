@@ -322,8 +322,12 @@ public class IActivityManagerProxy extends ClassInvocationStub {
             if (auth.equals("com.google.android.gms.chimera") || auth.equals("com.google.android.chimera")) {
                 return false;
             }
+            // DownloadManager's provider lives on the host. Virtual GMS downloads its
+            // optional chimera modules (Games, etc.) through it; without this the lookup
+            // returned null and those modules never arrived.
             return auth.equals("settings")
                     || auth.equals("media")
+                    || auth.equals("downloads")
                     || auth.equals("telephony")
                     || auth.contains("com.google.android.gms")
                     || auth.contains("com.android.vending")
