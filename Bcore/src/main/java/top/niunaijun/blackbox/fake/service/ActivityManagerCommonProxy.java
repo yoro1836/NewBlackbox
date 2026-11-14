@@ -210,6 +210,25 @@ public class ActivityManagerCommonProxy {
         }
     }
 
+    /**
+     * Android 14+ Activity.getLaunchedFromPackage(). The system names the host package, while
+     * getCallingPackage names the virtual caller; GMS sign-in compares the two and aborts
+     * ("mismatch between getCallingPackage ... and getLaunchedFromPackage").
+     */
+    @ProxyMethod("getLaunchedFromPackage")
+    public static class getLaunchedFromPackage extends MethodHook {
+        @Override
+        protected Object hook(Object who, Method method, Object[] args) throws Throwable {
+            Object real = method.invoke(who, args);
+            try {
+                String pkg = BlackBoxCore.getBActivityManager().getCallingPackage((IBinder) args[0], BActivityThread.getUserId());
+                if (pkg != null) return pkg;
+            } catch (Throwable ignored) {
+            }
+            return real;
+        }
+    }
+
     @ProxyMethod("getCallingActivity")
     public static class getCallingActivity extends MethodHook {
         @Override
