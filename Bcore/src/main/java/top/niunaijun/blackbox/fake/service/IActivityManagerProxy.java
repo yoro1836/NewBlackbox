@@ -728,11 +728,17 @@ public class IActivityManagerProxy extends ClassInvocationStub {
             }
             IInterface invoke = (IInterface) method.invoke(who, args);
             if (invoke != null) {
-                String[] packagesForUid = BPackageManager.get().getPackagesForUid(BActivityThread.getCallingBUid());
-                if (packagesForUid.length < 1) {
-                    packagesForUid = new String[]{BlackBoxCore.getHostPkg()};
+                // The creator is the app running in this process. callingBUid is the app that
+                // started the process (GMS started by Play Store reported com.android.vending,
+                // so GMS NetworkScheduler filed its own tasks, Phenotype sync included, under
+                // Play Store and ignored them).
+                String creator = BActivityThread.getAppConfig() != null ? BActivityThread.getAppPackageName() : null;
+                int creatorUid = BActivityThread.getAppConfig() != null ? BActivityThread.getBUid() : BActivityThread.getCallingBUid();
+                if (creator == null) {
+                    String[] packagesForUid = BPackageManager.get().getPackagesForUid(BActivityThread.getCallingBUid());
+                    creator = packagesForUid.length < 1 ? BlackBoxCore.getHostPkg() : packagesForUid[0];
                 }
-                BlackBoxCore.getBActivityManager().getIntentSender(invoke.asBinder(), packagesForUid[0], BActivityThread.getCallingBUid());
+                BlackBoxCore.getBActivityManager().getIntentSender(invoke.asBinder(), creator, creatorUid);
             }
             return invoke;
         }
