@@ -51,9 +51,8 @@ public class BActivityManagerService extends IBActivityManagerService.Stub imple
     public ComponentName startService(Intent intent, String resolvedType, boolean requireForeground, int userId) {
         UserSpace userSpace = getOrCreateSpaceLocked(userId);
         synchronized (userSpace.mActiveServices) {
-            userSpace.mActiveServices.startService(intent, resolvedType, requireForeground, userId);
+            return userSpace.mActiveServices.startService(intent, resolvedType, requireForeground, userId);
         }
-        return null;
     }
 
     @Override

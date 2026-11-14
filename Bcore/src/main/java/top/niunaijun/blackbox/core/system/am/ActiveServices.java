@@ -38,11 +38,13 @@ public class ActiveServices {
     private final Map<IBinder, RunningServiceRecord> mRunningTokens = new HashMap<>();
     private final Map<IBinder, ConnectedServiceRecord> mConnectedServices = new HashMap<>();
 
-    public void startService(Intent intent, String resolvedType, boolean requireForeground, int userId) {
+    /** Returns the started component like the framework does: callers (GMS's
+     *  ModuleManager.requestFeatures among them) treat null as "not started". */
+    public ComponentName startService(Intent intent, String resolvedType, boolean requireForeground, int userId) {
         ResolveInfo resolveInfo = resolveService(intent, resolvedType, userId);
         if (resolveInfo == null) {
             android.util.Log.w(TAG, "startService dropped, unresolvable: " + (intent != null ? intent.toString() : "null") + " user=" + userId);
-            return;
+            return null;
         }
         ServiceInfo serviceInfo = resolveInfo.serviceInfo;
         android.util.Log.d(TAG, "startService: " + serviceInfo.packageName + "/" + serviceInfo.name
@@ -68,6 +70,7 @@ public class ActiveServices {
         } catch (Throwable e) {
             android.util.Log.e(TAG, "startService dispatch failed: " + serviceInfo.name, e);
         }
+        return new ComponentName(serviceInfo.packageName, serviceInfo.name);
     }
 
     public int stopService(Intent intent, String resolvedType, int userId) {
