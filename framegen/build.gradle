@@ -1,0 +1,35 @@
+apply plugin: 'com.android.library'
+
+// Frame generation wrapper (libzfg_vk.so) for virtual Vulkan games: FSR 3.1 and
+// LSFG engines. See README.md for sources and licences.
+android {
+    namespace 'org.blackbox.framegen'
+    compileSdk rootProject.ext.compileSdkVersion
+    ndkVersion "29.0.13846066"
+
+    defaultConfig {
+        minSdkVersion rootProject.ext.minSdk
+        ndk {
+            abiFilters 'arm64-v8a'
+        }
+        externalNativeBuild {
+            cmake {
+                // Release code in debug APKs too: the wrapper runs every frame of the game.
+                arguments "-DANDROID_STL=c++_static", "-DANDROID_PLATFORM=android-30", "-DCMAKE_BUILD_TYPE=Release"
+                targets "zfg_vk"
+            }
+        }
+    }
+
+    externalNativeBuild {
+        cmake {
+            path 'src/main/cpp/CMakeLists.txt'
+            version '3.22.1'
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_21
+        targetCompatibility JavaVersion.VERSION_21
+    }
+}

@@ -1,0 +1,4 @@
+[submodule "framegen/third_party/ZeroFG"]
+	path = framegen/third_party/ZeroFG
+	url = https://github.com/yoro1836/ZeroFG
+	branch = claude/project-thread-upnk8i

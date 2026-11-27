@@ -1,5 +1,8 @@
 package top.niunaijun.blackboxa.view.apps
 
+import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -14,6 +17,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
@@ -24,6 +28,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -33,10 +38,16 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import top.niunaijun.blackboxa.R
 import top.niunaijun.blackboxa.bean.AppInfo
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import top.niunaijun.blackboxa.data.FrameGen
+import top.niunaijun.blackboxa.data.FrameGenConfig
+import top.niunaijun.blackboxa.data.LsfgPack
 
 private val TARGETS = listOf(60, 90, 120, 144)
 private val SCALES = listOf(50, 67, 75, 100)
+private val MULTS = listOf(2, 3, 4)
 
 /** Per-app frame generation settings; they apply the next time the app starts. */
 @Composable
@@ -45,6 +56,27 @@ fun FrameGenDialog(app: AppInfo, onDismiss: () -> Unit) {
     var cfg by remember { mutableStateOf(FrameGen.get(context, app.packageName)) }
     var showLog by remember { mutableStateOf(false) }
     val available = remember { FrameGen.library(context) != null }
+    var packReady by remember { mutableStateOf(LsfgPack.installed(context)) }
+    var importing by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+    val pickDll = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        importing = true
+        scope.launch {
+            val msg = withContext(Dispatchers.IO) {
+                try {
+                    val n = context.contentResolver.openInputStream(uri)?.let { LsfgPack.import(context, it) }
+                        ?: throw LsfgPack.BadDll("cannot open")
+                    context.getString(R.string.framegen_lsfg_imported, n)
+                } catch (e: Exception) {
+                    context.getString(R.string.framegen_lsfg_import_failed, e.message ?: e.javaClass.simpleName)
+                }
+            }
+            importing = false
+            packReady = LsfgPack.installed(context)
+            Toast.makeText(context, msg, Toast.LENGTH_LONG).show()
+        }
+    }
 
     if (showLog) {
         val log = remember { FrameGen.logTail(context, app.packageName) }
@@ -86,6 +118,40 @@ fun FrameGenDialog(app: AppInfo, onDismiss: () -> Unit) {
                     Switch(checked = cfg.on, enabled = available, onCheckedChange = { cfg = cfg.copy(on = it) })
                 }
                 Spacer(Modifier.height(12.dp))
+                Text(stringResource(R.string.framegen_engine), style = MaterialTheme.typography.titleSmall)
+                Spacer(Modifier.height(6.dp))
+                SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
+                    listOf(FrameGenConfig.ENGINE_FSR to R.string.framegen_engine_fsr,
+                        FrameGenConfig.ENGINE_LSFG to R.string.framegen_engine_lsfg)
+                        .forEachIndexed { i, (engine, label) ->
+                            SegmentedButton(
+                                selected = cfg.engine == engine,
+                                onClick = { cfg = cfg.copy(engine = engine) },
+                                shape = SegmentedButtonDefaults.itemShape(i, 2)
+                            ) { Text(stringResource(label)) }
+                        }
+                }
+                if (cfg.lsfg) {
+                    Text(
+                        stringResource(if (packReady) R.string.framegen_lsfg_ready else R.string.framegen_lsfg_missing),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = if (packReady) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.error
+                    )
+                    OutlinedButton(
+                        onClick = { pickDll.launch(arrayOf("*/*")) },
+                        enabled = !importing
+                    ) { Text(stringResource(if (packReady) R.string.framegen_lsfg_reimport else R.string.framegen_lsfg_import)) }
+                    Spacer(Modifier.height(8.dp))
+                    Text(stringResource(R.string.framegen_mult), style = MaterialTheme.typography.titleSmall)
+                    ChipRow(MULTS, cfg.mult, { "${it}x" }) { cfg = cfg.copy(mult = it) }
+                    Text(
+                        stringResource(R.string.framegen_mult_hint),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                if (!cfg.lsfg) {
+                Spacer(Modifier.height(12.dp))
                 Text(stringResource(R.string.framegen_mode), style = MaterialTheme.typography.titleSmall)
                 Spacer(Modifier.height(6.dp))
                 SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
@@ -103,6 +169,7 @@ fun FrameGenDialog(app: AppInfo, onDismiss: () -> Unit) {
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+                }
                 Spacer(Modifier.height(12.dp))
                 Text(stringResource(R.string.framegen_target), style = MaterialTheme.typography.titleSmall)
                 ChipRow(TARGETS, cfg.target, { "$it" }) { cfg = cfg.copy(target = it) }

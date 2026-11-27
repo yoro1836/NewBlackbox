@@ -84,6 +84,7 @@ android {
 dependencies {
     implementation fileTree(dir: "libs", include: ["*.jar", "*.aar"])
     implementation project(':Bcore')
+    implementation project(':framegen')
 
     implementation libs.appcompat
     implementation libs.material

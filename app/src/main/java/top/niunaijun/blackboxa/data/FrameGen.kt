@@ -12,8 +12,20 @@ data class FrameGenConfig(
     val target: Int = 120,
     /** Optical flow resolution, percent per axis. */
     val scale: Int = 75,
+    /** Engine: [ENGINE_FSR] (FSR 3.1, 2x) or [ENGINE_LSFG] (Lossless Scaling's shaders, 2x .. 4x). */
+    val engine: String = ENGINE_FSR,
+    /** LSFG: most output frames per game frame. */
+    val mult: Int = 2,
 ) {
-    fun encode() = "fg=${if (on) 1 else 0};extra=${if (extrapolate) 1 else 0};target=$target;scale=$scale"
+    val lsfg get() = engine == ENGINE_LSFG
+
+    fun encode() = "fg=${if (on) 1 else 0};extra=${if (extrapolate && !lsfg) 1 else 0};target=$target;scale=$scale" +
+        ";engine=$engine;mult=$mult"
+
+    companion object {
+        const val ENGINE_FSR = "fsr"
+        const val ENGINE_LSFG = "lsfg"
+    }
 }
 
 /**
@@ -44,6 +56,8 @@ object FrameGen {
             extrapolate = kv["extra"] == "1",
             target = kv["target"]?.toIntOrNull()?.coerceIn(30, 165) ?: 120,
             scale = kv["scale"]?.toIntOrNull()?.coerceIn(25, 100) ?: 75,
+            engine = if (kv["engine"] == FrameGenConfig.ENGINE_LSFG) FrameGenConfig.ENGINE_LSFG else FrameGenConfig.ENGINE_FSR,
+            mult = kv["mult"]?.toIntOrNull()?.coerceIn(2, 4) ?: 2,
         )
     }
 

@@ -130,7 +130,7 @@
     <string name="disable_gms_hint">이 사용자의 Google 서비스를 지울까요? 로그인한 계정과 Google 서비스 데이터가 지워집니다.</string>
     <string name="no_gms">이 기기에 Google 서비스가 없습니다.</string>
     <string name="framegen">프레임 생성</string>
-    <string name="framegen_hint">앱 안의 Vulkan 게임 프레임을 두 배로 늘려요 (FSR 3.1 광학 흐름 + 프레임 보간). 앱을 다시 시작하면 적용돼요.</string>
+    <string name="framegen_hint">앱 안의 Vulkan 게임 프레임을 늘려요 (FSR 3.1 또는 LSFG). 앱을 다시 시작하면 적용돼요.</string>
     <string name="framegen_missing">이 빌드에 프레임 생성 라이브러리가 없어요.</string>
     <string name="framegen_enable">프레임 생성 사용</string>
     <string name="framegen_mode">방식</string>
@@ -141,6 +141,17 @@
     <string name="framegen_target">목표 fps</string>
     <string name="framegen_scale">흐름 해상도</string>
     <string name="framegen_scale_hint">광학 흐름만 이 크기로 계산하고, 생성 프레임은 항상 원본 크기예요. 낮을수록 빨라요.</string>
+    <string name="framegen_engine">엔진</string>
+    <string name="framegen_engine_fsr">FSR 3.1</string>
+    <string name="framegen_engine_lsfg">LSFG</string>
+    <string name="framegen_lsfg_missing">LSFG는 Lossless Scaling의 셰이더를 써요. PC의 Steam\\steamapps\\common\\Lossless Scaling\\Lossless.dll 을 폰으로 옮긴 뒤 가져오세요.</string>
+    <string name="framegen_lsfg_ready">Lossless.dll 셰이더를 가져왔어요.</string>
+    <string name="framegen_lsfg_import">Lossless.dll 가져오기</string>
+    <string name="framegen_lsfg_reimport">Lossless.dll 다시 가져오기</string>
+    <string name="framegen_lsfg_imported">셰이더 %1$d개를 가져왔어요.</string>
+    <string name="framegen_lsfg_import_failed">가져오지 못했어요: %1$s</string>
+    <string name="framegen_mult">최대 배수</string>
+    <string name="framegen_mult_hint">게임 fps와 목표 fps에 맞춰 이 배수까지 프레임을 만들어요.</string>
     <string name="framegen_log">로그</string>
     <string name="framegen_log_empty">아직 로그가 없어요. 프레임 생성을 켜고 앱을 실행해보세요.</string>
 </resources>

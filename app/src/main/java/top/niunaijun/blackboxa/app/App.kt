@@ -7,6 +7,7 @@ import android.util.Log
 import top.niunaijun.blackbox.BlackBoxCore
 import top.niunaijun.blackbox.core.gpu.VulkanDriverManager
 import top.niunaijun.blackboxa.data.FrameGen
+import top.niunaijun.blackboxa.data.LsfgPack
 
 
 class App : Application() {
@@ -80,6 +81,7 @@ class App : Application() {
 
                 override fun wrapperConfig(packageName: String): String =
                     "log=${FrameGen.logFile(base, packageName).absolutePath};" +
+                        "lsfg=${LsfgPack.file(base).absolutePath};" +
                         FrameGen.get(base, packageName).encode()
             })
         } catch (e: Throwable) {

@@ -142,7 +142,7 @@
     <string name="fake_location_pick">Pick location</string>
     <string name="fake_location_use">Use this location</string>
     <string name="framegen">Frame generation</string>
-    <string name="framegen_hint">Doubles the frame rate of Vulkan games inside the app (FSR 3.1 optical flow + frame interpolation). Applies the next time the app starts.</string>
+    <string name="framegen_hint">Raises the frame rate of Vulkan games inside the app (FSR 3.1 or LSFG). Applies the next time the app starts.</string>
     <string name="framegen_missing">The frame generation library is missing from this build.</string>
     <string name="framegen_enable">Use frame generation</string>
     <string name="framegen_mode">Mode</string>
@@ -153,6 +153,17 @@
     <string name="framegen_target">Target fps</string>
     <string name="framegen_scale">Flow resolution</string>
     <string name="framegen_scale_hint">Optical flow runs at this size; the generated frame is always full size. Lower is faster.</string>
+    <string name="framegen_engine">Engine</string>
+    <string name="framegen_engine_fsr">FSR 3.1</string>
+    <string name="framegen_engine_lsfg">LSFG</string>
+    <string name="framegen_lsfg_missing">LSFG uses Lossless Scaling\'s shaders. Copy Steam\\steamapps\\common\\Lossless Scaling\\Lossless.dll from your PC to the phone and import it.</string>
+    <string name="framegen_lsfg_ready">Lossless.dll shaders imported.</string>
+    <string name="framegen_lsfg_import">Import Lossless.dll</string>
+    <string name="framegen_lsfg_reimport">Import Lossless.dll again</string>
+    <string name="framegen_lsfg_imported">Imported %1$d shaders.</string>
+    <string name="framegen_lsfg_import_failed">Import failed: %1$s</string>
+    <string name="framegen_mult">Max multiplier</string>
+    <string name="framegen_mult_hint">Generates up to this many frames per game frame, following the game fps and the target.</string>
     <string name="framegen_log">Log</string>
     <string name="framegen_log_empty">No log yet. Start the app with frame generation on.</string>
 </resources>
