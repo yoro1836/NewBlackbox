@@ -7,14 +7,17 @@ import java.net.URL
 import java.security.MessageDigest
 
 /**
- * Fetches the pinned microG release from microG's official F-Droid repository and checks it
- * against the repository's SHA-256. Bump the versions and hashes together (from
- * https://microg.org/fdroid/repo/index-v1.json).
+ * Fetches the pinned microG release (GitHub release assets, which are served from a CDN, then
+ * microG's own F-Droid repository, which is slow from Asia) and checks the SHA-256. Bump the
+ * versions and hashes together (from https://microg.org/fdroid/repo/index-v1.json).
  */
 object MicroGDownloader {
     const val VERSION = "0.3.18"
 
-    private const val REPO = "https://microg.org/fdroid/repo/"
+    private val MIRRORS = listOf(
+        "https://github.com/microg/GmsCore/releases/download/v0.3.18.252432/",
+        "https://microg.org/fdroid/repo/"
+    )
 
     class Apk(val label: String, val file: String, val sha256: String, val size: Long)
 
@@ -31,20 +34,50 @@ object MicroGDownloader {
             return out
         }
         val part = File(dir, apk.file + ".part")
-        part.delete()
-        var conn: HttpURLConnection? = null
+        var lastError: IOException? = null
+        for (base in MIRRORS) {
+            try {
+                download(base + apk.file, part, apk.size, progress)
+                lastError = null
+                break
+            } catch (e: IOException) {
+                lastError = e
+            }
+        }
+        lastError?.let { throw it }
+        val hash = sha256(part)
+        if (hash != apk.sha256) {
+            part.delete()
+            throw IOException("${apk.file}: SHA-256 mismatch ($hash)")
+        }
+        out.delete()
+        if (!part.renameTo(out)) {
+            throw IOException("Could not save ${apk.file}")
+        }
+        return out
+    }
+
+    /** Downloads url into part, resuming a partial file when the server honours Range. */
+    private fun download(url: String, part: File, size: Long, progress: (Long, Long) -> Unit) {
+        var have = if (part.length() in 1 until size) part.length() else 0L
+        if (have == 0L) part.delete()
+        val conn = URL(url).openConnection() as HttpURLConnection
         try {
-            conn = URL(REPO + apk.file).openConnection() as HttpURLConnection
             conn.connectTimeout = 20000
             conn.readTimeout = 30000
-            if (conn.responseCode != 200) {
-                throw IOException("HTTP ${conn.responseCode} for ${apk.file}")
+            conn.instanceFollowRedirects = true
+            if (have > 0) conn.setRequestProperty("Range", "bytes=$have-")
+            val code = conn.responseCode
+            if (code == 200) {
+                have = 0
+            } else if (code != 206) {
+                throw IOException("HTTP $code for $url")
             }
-            val total = conn.contentLengthLong.takeIf { it > 0 } ?: apk.size
+            val total = if (code == 206) size else conn.contentLengthLong.takeIf { it > 0 } ?: size
             conn.inputStream.use { input ->
-                part.outputStream().use { output ->
+                java.io.FileOutputStream(part, have > 0).use { output ->
                     val buf = ByteArray(64 * 1024)
-                    var done = 0L
+                    var done = have
                     var lastReport = 0L
                     while (true) {
                         val n = input.read(buf)
@@ -60,18 +93,8 @@ object MicroGDownloader {
                 }
             }
         } finally {
-            conn?.disconnect()
+            conn.disconnect()
         }
-        val hash = sha256(part)
-        if (hash != apk.sha256) {
-            part.delete()
-            throw IOException("${apk.file}: SHA-256 mismatch ($hash)")
-        }
-        out.delete()
-        if (!part.renameTo(out)) {
-            throw IOException("Could not save ${apk.file}")
-        }
-        return out
     }
 
     private fun sha256(f: File): String {
