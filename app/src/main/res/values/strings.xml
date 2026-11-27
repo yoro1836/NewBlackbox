@@ -156,8 +156,7 @@
     <string name="framegen_lowlat">Low latency mode</string>
     <string name="framegen_lowlat_hint">Keeps the game from queuing more than one frame ahead of the GPU, so input feels faster. GPU-bound games may lose a few fps.</string>
     <string name="framegen_edge">Edge fix</string>
-    <string name="framegen_edge_hint">Fast motion entering at the screen border has nothing to match and breaks up. This much of the border is blended toward the real frame to hide it. Wider looks less smooth at the border.</string>
-    <string name="framegen_edge_off">Off</string>
+    <string name="framegen_edge_hint">Content leaving the screen fast is made from the frame that still has it, instead of mixing in black at the border.</string>
     <string name="framegen_engine">Engine</string>
     <string name="framegen_engine_fsr">FSR 3.1</string>
     <string name="framegen_engine_lsfg">LSFG</string>

@@ -89,10 +89,10 @@ std::vector<uint32_t> Rebind(std::vector<uint32_t> w, std::string* entry) {
 // Shader ids in Lossless.dll (the 16-bit "native" builds sit 49 ids higher; the
 // app's pack already holds those under these ids).
 constexpr uint32_t kMipmaps = 255, kGenerate = 256;
-// Our own edge pass (shaders/edge.comp), not from the pack.
-constexpr uint32_t kEdgePass = 0x10000;
-const uint32_t kEdgeSpv[] =
-#include "edge.spv.inc"
+// Our own final pass (shaders/generate.comp, edge fix), not from the pack.
+constexpr uint32_t kOwnGenerate = 0x10000;
+const uint32_t kOwnGenerateSpv[] =
+#include "generate.spv.inc"
     ;
 constexpr uint32_t kAlpha[4] = {290, 291, 292, 293};
 constexpr uint32_t kBeta[5] = {298, 299, 300, 301, 302};
@@ -192,7 +192,7 @@ struct Engine::Impl {
   std::vector<VkDeviceMemory> buffer_memory;
   VkSampler sampler = VK_NULL_HANDLE, white = VK_NULL_HANDLE, edge = VK_NULL_HANDLE;
   float flow_scale = 1;
-  float edge_band = 0;  // our edge pass: blended border width per axis (0: off)
+  bool edge_fix = false;  // our final pass instead of the pack's
 
   ~Impl() {
     if (!dev) return;
@@ -302,7 +302,6 @@ struct Engine::Impl {
     c.resolution_inv_scale = 1.f / flow_scale;
     c.timestamp = timestamp;
     c.ui_threshold = 0.5f;
-    memcpy(&c.pad[0], &edge_band, 4);  // read by our edge pass only
     memcpy(p, &c, sizeof c);  // stays mapped; freed with the memory
     return b;
   }
@@ -315,8 +314,8 @@ struct Engine::Impl {
     Pipeline& p = pipelines[key];
     std::string entry;
     std::vector<uint32_t> code;
-    if (id == kEdgePass) {
-      code.assign(std::begin(kEdgeSpv), std::end(kEdgeSpv));
+    if (id == kOwnGenerate) {
+      code.assign(std::begin(kOwnGenerateSpv), std::end(kOwnGenerateSpv));
       entry = "main";
     } else {
       auto src = pack->find(id);
@@ -704,14 +703,9 @@ bool Engine::Impl::Build(uint32_t width, uint32_t height, const VkImageView fram
         if (!ok) return false;
       }
       const VkBuffer gub = Uniform(ts);
-      if (!Add(prog, kGenerate, full, 4, kNewest, true, [&](int v) {
+      if (!Add(prog, edge_fix ? kOwnGenerate : kGenerate, full, 4, kNewest, true, [&](int v) {
             return List{U(gub),        S(sampler),          S(edge),           F(frames[1 - v]), F(frames[v]),
                         T(gamma[kLevels - 1].out), T(delta[2].out1), T(delta[2].out2),
-                        Res{kStorage, VK_NULL_HANDLE, VK_NULL_HANDLE, output}};
-          }))
-        return false;
-      if (edge_band > 0 && !Add(prog, kEdgePass, full, 3, kNewest, true, [&](int v) {
-            return List{U(gub), F(frames[1 - v]), F(frames[v]), Res{kSampled, VK_NULL_HANDLE, VK_NULL_HANDLE, output},
                         Res{kStorage, VK_NULL_HANDLE, VK_NULL_HANDLE, output}};
           }))
         return false;
@@ -723,13 +717,13 @@ bool Engine::Impl::Build(uint32_t width, uint32_t height, const VkImageView fram
 std::unique_ptr<Engine> Engine::Create(VkPhysicalDevice, VkDevice device, PFN_vkGetDeviceProcAddr gdpa,
                                        const VkPhysicalDeviceMemoryProperties& mem, const ShaderPack& pack,
                                        uint32_t width, uint32_t height, const VkImageView frames[2],
-                                       VkImageView output, float flow_scale, float edge_band, std::string* err) {
+                                       VkImageView output, float flow_scale, bool edge_fix, std::string* err) {
   auto impl = std::make_unique<Impl>();
   impl->dev = device;
   impl->mem = mem;
   impl->pack = &pack;
   impl->flow_scale = std::clamp(flow_scale, 0.25f, 1.f);
-  impl->edge_band = std::clamp(edge_band, 0.f, 0.25f);
+  impl->edge_fix = edge_fix;
   bool missing = false;
 #define LSFG_LOAD(n)                                                     \
   impl->n = reinterpret_cast<PFN_vk##n>(gdpa(device, "vk" #n));          \

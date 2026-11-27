@@ -48,7 +48,6 @@ import top.niunaijun.blackboxa.data.LsfgPack
 private val TARGETS = listOf(60, 90, 120, 144)
 private val SCALES = listOf(50, 67, 75, 100)
 private val MULTS = listOf(2, 3, 4)
-private val EDGES = listOf(0, 3, 6, 10)
 
 /** Per-app frame generation settings; they apply the next time the app starts. */
 @Composable
@@ -57,7 +56,6 @@ fun FrameGenDialog(app: AppInfo, onDismiss: () -> Unit) {
     var cfg by remember { mutableStateOf(FrameGen.get(context, app.packageName)) }
     var showLog by remember { mutableStateOf(false) }
     val available = remember { FrameGen.library(context) != null }
-    val offLabel = stringResource(R.string.framegen_edge_off)
     var packReady by remember { mutableStateOf(LsfgPack.installed(context)) }
     var importing by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
@@ -163,13 +161,17 @@ fun FrameGenDialog(app: AppInfo, onDismiss: () -> Unit) {
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Spacer(Modifier.height(8.dp))
-                Text(stringResource(R.string.framegen_edge), style = MaterialTheme.typography.titleSmall)
-                ChipRow(EDGES, cfg.edge, { if (it == 0) offLabel else "$it%" }) { cfg = cfg.copy(edge = it) }
-                Text(
-                    stringResource(R.string.framegen_edge_hint),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text(stringResource(R.string.framegen_edge), style = MaterialTheme.typography.titleSmall)
+                        Text(
+                            stringResource(R.string.framegen_edge_hint),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Switch(checked = cfg.edgeFix, onCheckedChange = { cfg = cfg.copy(edgeFix = it) })
+                }
             }
         },
         confirmButton = {

@@ -31,14 +31,13 @@ class Engine {
  public:
   // frames[0], frames[1]: the wrapper's two game-frame copies (sampled usage, kept
   // in SHADER_READ_ONLY_OPTIMAL). The output image must allow storage writes.
-  // flow_scale: optical flow resolution (0.25 .. 1). edge_band: our own pass after
-  // generation blends the border (this fraction of each axis) toward the real frame
-  // closest in time, where fast motion enters the screen (0: off). Needs
-  // shaderStorageImageWriteWithoutFormat.
+  // flow_scale: optical flow resolution (0.25 .. 1). edge_fix: make the frame with
+  // our own final pass (shaders/generate.comp), which drops motion hypotheses that
+  // point off screen instead of blending in the border colour.
   static std::unique_ptr<Engine> Create(VkPhysicalDevice phys, VkDevice device, PFN_vkGetDeviceProcAddr gdpa,
                                         const VkPhysicalDeviceMemoryProperties& mem, const ShaderPack& pack,
                                         uint32_t width, uint32_t height, const VkImageView frames[2],
-                                        VkImageView output, float flow_scale, float edge_band, std::string* err);
+                                        VkImageView output, float flow_scale, bool edge_fix, std::string* err);
   ~Engine();
 
   // A new game frame was copied into frames[cur]. Runs the per-frame work (flow

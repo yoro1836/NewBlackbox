@@ -1,0 +1,65 @@
+#version 450
+// Our replacement for the final LSFG pass (edge=1). It blends the same four
+// hypotheses (two motion fields, each pointing to the previous and the next frame)
+// with the same confidence weights, but drops a hypothesis whose sample lies off
+// screen: content leaving the screen (the fastest-moving parts in a racing game)
+// is then made from the frame that still has it, instead of mixing in the border
+// colour (transparent black) at full weight.
+layout(local_size_x = 16, local_size_y = 16) in;
+layout(set = 0, binding = 0) uniform Constants {
+  uvec2 input_offset;
+  uint first_iter, first_iter_s, advanced_color_kind, hdr_support;
+  float resolution_inv_scale, timestamp;
+} c;
+layout(set = 0, binding = 1) uniform sampler border_sampler;
+layout(set = 0, binding = 2) uniform sampler clamp_sampler;
+layout(set = 0, binding = 3) uniform texture2D prev_frame;
+layout(set = 0, binding = 4) uniform texture2D next_frame;
+layout(set = 0, binding = 5) uniform texture2D motion1;
+layout(set = 0, binding = 6) uniform texture2D motion2;
+layout(set = 0, binding = 7) uniform texture2D confidence;
+layout(set = 0, binding = 8) uniform writeonly image2D result;
+
+void main() {
+  const vec2 size = vec2(textureSize(sampler2D(prev_frame, clamp_sampler), 0));
+  const uvec2 id = gl_GlobalInvocationID.xy;
+  if (float(id.x) >= size.x || float(id.y) >= size.y) return;
+  const vec2 px = vec2(id) + 0.5;
+  const vec2 uv = px / size;
+  const float t = c.timestamp;
+
+  const vec4 m1 = textureLod(sampler2D(motion1, clamp_sampler), uv, 0.0) * c.resolution_inv_scale;
+  const vec4 m2 = textureLod(sampler2D(motion2, clamp_sampler), uv, 0.0) * c.resolution_inv_scale;
+  vec2 pos[4];
+  pos[0] = px + m1.xy * (2.0 * t);
+  pos[1] = px + m1.zw * (2.0 * (1.0 - t));
+  pos[2] = px + m2.xy * (2.0 * t);
+  pos[3] = px + m2.zw * (2.0 * (1.0 - t));
+
+  float logit[4];
+  logit[0] = textureLod(sampler2D(confidence, clamp_sampler), pos[0] / size, 0.0).x;
+  logit[1] = textureLod(sampler2D(confidence, clamp_sampler), pos[1] / size, 0.0).y;
+  logit[2] = textureLod(sampler2D(confidence, clamp_sampler), pos[2] / size, 0.0).z;
+  logit[3] = textureLod(sampler2D(confidence, clamp_sampler), pos[3] / size, 0.0).w;
+  const float top = max(max(logit[0], logit[1]), max(logit[2], logit[3]));
+
+  const float time_w[4] = float[4](1.0 - t, t, 1.0 - t, t);
+  vec4 sum = vec4(0.0), all_sum = vec4(0.0);
+  float wsum = 0.0, all_wsum = 0.0;
+  for (int i = 0; i < 4; ++i) {
+    const vec4 col = (i & 1) == 0 ? textureLod(sampler2D(prev_frame, clamp_sampler), pos[i] / size, 0.0)
+                                  : textureLod(sampler2D(next_frame, clamp_sampler), pos[i] / size, 0.0);
+    const float w = exp(logit[i] - top) * time_w[i];
+    // Half a pixel of slack: bilinear taps at the very edge are still real.
+    const bool on_screen = all(greaterThanEqual(pos[i], vec2(-0.5))) && all(lessThanEqual(pos[i], size + 0.5));
+    all_sum += w * col;
+    all_wsum += w;
+    if (on_screen) {
+      sum += w * col;
+      wsum += w;
+    }
+  }
+  // Every hypothesis off screen (a corner moving out both ways): clamp them all.
+  const vec4 outc = wsum > 1e-6 ? sum / wsum : all_sum / (all_wsum + 1e-8);
+  imageStore(result, ivec2(id), outc);
+}

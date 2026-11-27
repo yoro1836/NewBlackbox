@@ -18,13 +18,13 @@ data class FrameGenConfig(
     val mult: Int = 2,
     /** The game queues at most one frame ahead of the GPU: less input delay. */
     val lowLatency: Boolean = false,
-    /** LSFG: screen border blended toward the real frame, percent per axis (0: off). */
-    val edge: Int = 6,
+    /** LSFG: our final pass, which fixes fast motion leaving the screen edge. */
+    val edgeFix: Boolean = true,
 ) {
     val lsfg get() = engine == ENGINE_LSFG
 
     fun encode() = "fg=${if (on) 1 else 0};extra=${if (extrapolate && !lsfg) 1 else 0};target=$target;scale=$scale" +
-        ";engine=$engine;mult=$mult;lowlat=${if (lowLatency) 1 else 0};edge=$edge"
+        ";engine=$engine;mult=$mult;lowlat=${if (lowLatency) 1 else 0};edge=${if (edgeFix) 1 else 0}"
 
     companion object {
         const val ENGINE_FSR = "fsr"
@@ -63,7 +63,7 @@ object FrameGen {
             engine = FrameGenConfig.ENGINE_LSFG,
             mult = kv["mult"]?.toIntOrNull()?.coerceIn(2, 4) ?: 2,
             lowLatency = kv["lowlat"] == "1",
-            edge = kv["edge"]?.toIntOrNull()?.coerceIn(0, 20) ?: 6,
+            edgeFix = kv["edge"] != "0",
         )
     }
 

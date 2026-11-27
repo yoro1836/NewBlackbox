@@ -18,8 +18,9 @@ for the FidelityFX shader permutations. Submodule: `git submodule update --init`
   user's own `Lossless.dll` (Settings -> Frame generation -> LSFG -> Import) into
   `files/framegen/lsfg-shaders.pack` (app `LsfgPack.kt`). `lsfg/` is our own code;
   its pass graph follows the public description in lsfg-vk / Eden, nothing is
-  copied from them. `lsfg/shaders/edge.comp` is our own pass after generate that
-  blends the screen border toward the real frame closest in time (`edge=`).
+  copied from them. `lsfg/shaders/generate.comp` is our own final pass (`edge=1`,
+  default): the pack's blend of four motion hypotheses, minus those that point off
+  screen (which would mix in the border colour).
 
 ## Layout
 
@@ -32,7 +33,7 @@ for the FidelityFX shader permutations. Submodule: `git submodule update --init`
 ## Config
 
 Per app, written by the app UI to `files/framegen/<pkg>.txt`:
-`fg=0|1;target=<fps>;scale=<percent>;engine=lsfg;mult=2..4;lowlat=0|1;edge=<percent>`; the app
+`fg=0|1;target=<fps>;scale=<percent>;engine=lsfg;mult=2..4;lowlat=0|1;edge=0|1`; the app
 adds `log=<file>` and `lsfg=<pack>`.
 
 ## Licences

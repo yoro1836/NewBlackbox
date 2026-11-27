@@ -144,8 +144,7 @@
     <string name="framegen_lowlat">저지연 모드</string>
     <string name="framegen_lowlat_hint">게임이 GPU보다 한 프레임 넘게 앞서 쌓지 못하게 해서 입력 지연을 줄여요. GPU가 빠듯한 게임은 fps가 조금 떨어질 수 있어요.</string>
     <string name="framegen_edge">가장자리 보정</string>
-    <string name="framegen_edge_hint">화면 테두리에서 빠르게 들어오는 부분은 움직임을 못 찾아 깨지기 쉬워요. 이 폭만큼은 실제 프레임 쪽으로 부드럽게 섞어서 깨짐을 가려요. 넓을수록 테두리가 덜 부드러워 보여요.</string>
-    <string name="framegen_edge_off">끔</string>
+    <string name="framegen_edge_hint">화면 밖으로 빠르게 빠져나가는 부분을, 아직 그 부분이 남아 있는 프레임으로 만들어요. 테두리가 검게 섞이며 깨지던 걸 막아요.</string>
     <string name="framegen_engine">엔진</string>
     <string name="framegen_engine_fsr">FSR 3.1</string>
     <string name="framegen_engine_lsfg">LSFG</string>
