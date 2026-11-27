@@ -54,6 +54,11 @@ android {
     }
     buildFeatures {
         viewBinding true
+        compose true
+    }
+    composeOptions {
+        // Matches Kotlin 1.9.23.
+        kotlinCompilerExtensionVersion '1.5.11'
     }
     kotlinOptions {
         jvmTarget = '21'
@@ -96,20 +101,14 @@ dependencies {
 
     
     implementation 'androidx.recyclerview:recyclerview:1.2.1'
-    implementation 'com.gitee.cbfg5210:RVAdapter:0.3.7'
 
     
-    implementation 'com.github.Othershe:CornerLabelView:1.0.0'
     
 //    implementation 'com.github.nukc.stateview:kotlin:2.2.0'
     
-    implementation 'com.github.Ferfalk:SimpleSearchView:0.2.0'
-    implementation 'com.tbuonomo:dotsindicator:4.2'
     
     implementation 'org.osmdroid:osmdroid-android:6.1.11'
     
-    implementation 'com.afollestad.material-dialogs:core:3.3.0'
-    implementation 'com.afollestad.material-dialogs:input:3.3.0'
 
 
 
@@ -117,5 +116,18 @@ dependencies {
 
     
     implementation 'androidx.work:work-runtime:2.7.1'
+
+    // Compose + Material 3 UI
+    implementation platform('androidx.compose:compose-bom:2024.12.01')
+    implementation 'androidx.compose.ui:ui'
+    implementation 'androidx.compose.material3:material3'
+    implementation 'androidx.compose.material:material-icons-extended'
+    implementation 'androidx.compose.runtime:runtime-livedata'
+    implementation 'androidx.compose.ui:ui-tooling-preview'
+    debugImplementation 'androidx.compose.ui:ui-tooling'
+    implementation 'androidx.activity:activity-compose:1.9.3'
+    implementation 'androidx.lifecycle:lifecycle-viewmodel-compose:2.8.7'
+    // Drag-to-reorder for the app grid
+    implementation 'sh.calvin.reorderable:reorderable:2.4.3'
 
 }

@@ -30,7 +30,7 @@ class FakeLocationRepository {
 
     fun getInstalledAppList(
         userID: Int,
-        appsFakeLiveData: MutableLiveData<List<FakeLocationBean>>
+        appsFakeLiveData: MutableLiveData<List<FakeLocationBean>?>
     ) {
         val installedList = mutableListOf<FakeLocationBean>()
         val installedApplications: List<ApplicationInfo> =

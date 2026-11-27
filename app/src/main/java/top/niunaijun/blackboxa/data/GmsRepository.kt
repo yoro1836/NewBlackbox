@@ -30,7 +30,7 @@ class GmsRepository {
 
     fun installGms(
         userID: Int,
-        mUpdateInstalledLiveData: MutableLiveData<GmsInstallBean>
+        mUpdateInstalledLiveData: MutableLiveData<GmsInstallBean?>
     ) {
         val installResult = BlackBoxCore.get().installGms(userID)
 
@@ -50,7 +50,7 @@ class GmsRepository {
         userID: Int,
         cacheDir: java.io.File,
         progress: (String) -> Unit,
-        mUpdateInstalledLiveData: MutableLiveData<GmsInstallBean>
+        mUpdateInstalledLiveData: MutableLiveData<GmsInstallBean?>
     ) {
         val msg = try {
             val dir = java.io.File(cacheDir, "microg")
@@ -81,7 +81,7 @@ class GmsRepository {
 
     fun uninstallGms(
         userID: Int,
-        mUpdateInstalledLiveData: MutableLiveData<GmsInstallBean>
+        mUpdateInstalledLiveData: MutableLiveData<GmsInstallBean?>
     ) {
         var isSuccess = false
         if (BlackBoxCore.get().isInstallGms(userID)) {

@@ -10,7 +10,7 @@ import top.niunaijun.blackboxa.view.list.ListViewModel
 
 class WelcomeActivity : AppCompatActivity() {
 
-    override fun onNewIntent(intent: Intent?) {
+    override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         jump()
     }

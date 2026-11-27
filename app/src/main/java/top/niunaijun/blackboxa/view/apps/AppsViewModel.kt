@@ -9,14 +9,14 @@ import android.util.Log
 
 class AppsViewModel(private val repo: AppsRepository) : BaseViewModel() {
 
-    val appsLiveData = MutableLiveData<List<AppInfo>>()
+    val appsLiveData = MutableLiveData<List<AppInfo>?>()
 
-    val resultLiveData = MutableLiveData<String>()
+    val resultLiveData = MutableLiveData<String?>()
 
-    val launchLiveData = MutableLiveData<Boolean>()
+    val launchLiveData = MutableLiveData<Boolean?>()
 
     
-    val updateSortLiveData = MutableLiveData<Boolean>()
+    val updateSortLiveData = MutableLiveData<Boolean?>()
 
     fun getInstalledApps(userId: Int) {
         launchOnUI {

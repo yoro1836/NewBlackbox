@@ -4,154 +4,104 @@ import android.app.Activity
 import android.content.Context
 import android.content.Intent
 import android.os.Bundle
-import android.view.Menu
-import android.view.MenuItem
-import android.view.inputmethod.InputMethodManager
+import androidx.activity.ComponentActivity
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.FolderOpen
+import androidx.compose.material3.AssistChip
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.livedata.observeAsState
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.ViewModelProvider
-import androidx.recyclerview.widget.LinearLayoutManager
-import cbfg.rvadapter.RVAdapter
-import com.ferfalk.simplesearchview.SimpleSearchView
 import top.niunaijun.blackboxa.R
-import top.niunaijun.blackboxa.bean.InstalledAppBean
-import top.niunaijun.blackboxa.databinding.ActivityListBinding
+import top.niunaijun.blackboxa.ui.AppRow
+import top.niunaijun.blackboxa.ui.AppScaffold
+import top.niunaijun.blackboxa.ui.CenterProgress
+import top.niunaijun.blackboxa.ui.EmptyState
+import top.niunaijun.blackboxa.ui.SearchField
+import top.niunaijun.blackboxa.ui.setThemedContent
 import top.niunaijun.blackboxa.util.InjectionUtil
-import top.niunaijun.blackboxa.util.inflate
-import top.niunaijun.blackboxa.view.base.BaseActivity
 
-class ListActivity : BaseActivity() {
-
-    private val viewBinding: ActivityListBinding by inflate()
-
-    private lateinit var mAdapter: RVAdapter<InstalledAppBean>
+/** Picks a device app (or an APK file) to clone into a virtual user. */
+class ListActivity : ComponentActivity() {
 
     private lateinit var viewModel: ListViewModel
 
-    private var appList: List<InstalledAppBean> = ArrayList()
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(viewBinding.root)
-
-        initToolbar(viewBinding.toolbarLayout.toolbar, R.string.installed_app, true)
-
-        mAdapter =
-                RVAdapter<InstalledAppBean>(this, ListAdapter())
-                        .bind(viewBinding.recyclerView)
-                        .setItemClickListener { _, item, _ -> finishWithResult(item.packageName) }
-
-        viewBinding.recyclerView.layoutManager = LinearLayoutManager(this)
-
-        initSearchView()
-        initViewModel()
+        viewModel = ViewModelProvider(this, InjectionUtil.getListFactory())[ListViewModel::class.java]
+        viewModel.getInstallAppList(intent.getIntExtra("userID", 0))
+        setThemedContent { ListScreen() }
     }
 
-    private fun initSearchView() {
-        viewBinding.searchView.setOnQueryTextListener(
-                object : SimpleSearchView.OnQueryTextListener {
-                    override fun onQueryTextChange(newText: String): Boolean {
-                        filterApp(newText)
-                        return true
-                    }
-
-                    override fun onQueryTextCleared(): Boolean {
-                        return true
-                    }
-
-                    override fun onQueryTextSubmit(query: String): Boolean {
-                        return true
-                    }
+    @Composable
+    private fun ListScreen() {
+        val apps by viewModel.appsLiveData.observeAsState()
+        var query by remember { mutableStateOf("") }
+        AppScaffold(
+            title = stringResource(R.string.installed_app),
+            onBack = { finish() },
+            actions = {
+                IconButton(onClick = { pickApk.launch("application/vnd.android.package-archive") }) {
+                    Icon(Icons.Outlined.FolderOpen, contentDescription = stringResource(R.string.choose))
                 }
-        )
-    }
-
-    private fun initViewModel() {
-        viewModel =
-                ViewModelProvider(this, InjectionUtil.getListFactory())
-                        .get(ListViewModel::class.java)
-        val userID = intent.getIntExtra("userID", 0)
-        viewModel.getInstallAppList(userID)
-        viewBinding.toolbarLayout.toolbar.setTitle(R.string.installed_app)
-
-        viewModel.loadingLiveData.observe(this) {
-            if (it) {
-                viewBinding.stateView.showLoading()
-            } else {
-                viewBinding.stateView.showContent()
             }
-        }
-
-        viewModel.appsLiveData.observe(this) {
-            if (it != null) {
-                this.appList = it
-                viewBinding.searchView.setQuery("", false)
-                filterApp("")
-                if (it.isNotEmpty()) {
-                    viewBinding.stateView.showContent()
-                    viewModel.previewInstalledList()
-                } else {
-                    viewBinding.stateView.showEmpty()
+        ) { padding ->
+            Column(Modifier.padding(top = padding.calculateTopPadding())) {
+                SearchField(query, { query = it }, stringResource(R.string.search_apps))
+                val list = apps
+                when {
+                    list == null -> CenterProgress()
+                    list.isEmpty() -> EmptyState(stringResource(R.string.empty_empty))
+                    else -> {
+                        val shown = list.filter {
+                            it.name.contains(query, true) || it.packageName.contains(query, true)
+                        }
+                        LazyColumn(contentPadding = PaddingValues(bottom = padding.calculateBottomPadding())) {
+                            items(shown, key = { it.packageName }) { app ->
+                                AppRow(
+                                    icon = app.icon,
+                                    title = app.name,
+                                    subtitle = app.packageName,
+                                    onClick = { finishWithResult(app.packageName) },
+                                    trailing = if (app.isInstall) {
+                                        { AssistChip(onClick = {}, label = { Text(stringResource(R.string.installed_badge)) }) }
+                                    } else null
+                                )
+                            }
+                        }
+                    }
                 }
             }
         }
     }
 
-    private fun filterApp(newText: String) {
-        val newList =
-                this.appList.filter {
-                    it.name.contains(newText, true) or it.packageName.contains(newText, true)
-                }
-        mAdapter.setItems(newList)
+    private val pickApk = registerForActivityResult(ActivityResultContracts.GetContent()) {
+        it?.let { uri -> finishWithResult(uri.toString()) }
     }
-
-    private val openDocumentedResult =
-            registerForActivityResult(ActivityResultContracts.GetContent()) {
-                it?.run { finishWithResult(it.toString()) }
-            }
 
     private fun finishWithResult(source: String) {
         intent.putExtra("source", source)
         setResult(Activity.RESULT_OK, intent)
-        val imm: InputMethodManager = getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager
-        window.peekDecorView()?.run { imm.hideSoftInputFromWindow(windowToken, 0) }
         finish()
-    }
-
-    override fun onBackPressed() {
-        if (viewBinding.searchView.isSearchOpen) {
-            viewBinding.searchView.closeSearch()
-        } else {
-            super.onBackPressed()
-        }
-    }
-
-    override fun onOptionsItemSelected(item: MenuItem): Boolean {
-        if (item.itemId == R.id.list_choose) {
-            openDocumentedResult.launch("application/vnd.android.package-archive")
-        }
-        return true
-    }
-
-    override fun onCreateOptionsMenu(menu: Menu?): Boolean {
-        menuInflater.inflate(R.menu.menu_list, menu)
-        val item = menu!!.findItem(R.id.list_search)
-        viewBinding.searchView.setMenuItem(item)
-
-        return true
-    }
-
-    override fun onStop() {
-        super.onStop()
-        viewModel.loadingLiveData.postValue(true)
-        viewModel.loadingLiveData.removeObservers(this)
-        viewModel.appsLiveData.postValue(null)
-        viewModel.appsLiveData.removeObservers(this)
     }
 
     companion object {
         fun start(context: Context) {
-            val intent = Intent(context, ListActivity::class.java)
-            context.startActivity(intent)
+            context.startActivity(Intent(context, ListActivity::class.java))
         }
     }
 }

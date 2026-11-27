@@ -9,7 +9,7 @@ import top.niunaijun.blackboxa.view.base.BaseViewModel
 
 class FakeLocationViewModel(private val mRepo: FakeLocationRepository) : BaseViewModel() {
 
-    val appsLiveData = MutableLiveData<List<FakeLocationBean>>()
+    val appsLiveData = MutableLiveData<List<FakeLocationBean>?>()
 
 
     fun getInstallAppList(userID: Int) {

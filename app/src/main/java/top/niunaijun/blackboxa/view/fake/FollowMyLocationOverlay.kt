@@ -1,139 +1,104 @@
 package top.niunaijun.blackboxa.view.fake
 
-
 import android.app.Activity
 import android.os.Bundle
-import android.view.inputmethod.InputMethodManager
-import androidx.appcompat.app.AppCompatActivity
-import androidx.core.app.ActivityCompat
+import androidx.activity.ComponentActivity
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material3.ExtendedFloatingActionButton
+import androidx.compose.material3.Icon
+import androidx.compose.material3.Text
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.viewinterop.AndroidView
 import androidx.preference.PreferenceManager
 import org.osmdroid.config.Configuration
 import org.osmdroid.events.MapEventsReceiver
 import org.osmdroid.tileprovider.tilesource.TileSourceFactory
 import org.osmdroid.util.GeoPoint
+import org.osmdroid.views.MapView
 import org.osmdroid.views.overlay.MapEventsOverlay
 import org.osmdroid.views.overlay.Marker
 import top.niunaijun.blackbox.entity.location.BLocation
-import top.niunaijun.blackboxa.databinding.ActivityOsmdroidBinding
-import top.niunaijun.blackboxa.util.inflate
-import top.niunaijun.blackboxa.util.toast
+import top.niunaijun.blackboxa.R
+import top.niunaijun.blackboxa.ui.AppScaffold
+import top.niunaijun.blackboxa.ui.setThemedContent
 
+/** Map picker: tap to move the marker, then confirm. */
+class FollowMyLocationOverlay : ComponentActivity() {
 
-
-class FollowMyLocationOverlay : AppCompatActivity() {
-    val TAG: String = "FollowMyLocationOverlay"
-
-    private val REQUEST_PERMISSIONS_REQUEST_CODE = 1
-
-    private val binding: ActivityOsmdroidBinding by inflate()
-
-    lateinit var startPoint: GeoPoint
+    private var point by mutableStateOf(GeoPoint(37.5665, 126.9780))
+    private var map: MapView? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
-        
-
-        
-        
         Configuration.getInstance().load(this, PreferenceManager.getDefaultSharedPreferences(this))
-        
-        
-        
-        
-        
-        
-
-        
-        setContentView(binding.root)
-
+        @Suppress("DEPRECATION")
         val location: BLocation? = intent.getParcelableExtra("location")
+        if (location != null) point = GeoPoint(location.latitude, location.longitude)
 
-        startPoint = if (location == null) {
-            GeoPoint(30.2736, 120.1563)
-        } else {
-            GeoPoint(location.latitude, location.longitude)
-        }
+        setThemedContent {
+            AppScaffold(
+                title = stringResource(R.string.fake_location_pick),
+                subtitle = String.format("%.5f, %.5f", point.latitude, point.longitude),
+                onBack = { finish() },
+                floatingActionButton = {
+                    ExtendedFloatingActionButton(
+                        onClick = { finishWithResult() },
+                        icon = { Icon(Icons.Filled.Check, null) },
+                        text = { Text(stringResource(R.string.fake_location_use)) }
+                    )
+                }
+            ) { padding ->
+                AndroidView(
+                    modifier = Modifier.fillMaxSize().padding(padding),
+                    factory = { ctx ->
+                        MapView(ctx).also { mv ->
+                            map = mv
+                            mv.setTileSource(TileSourceFactory.MAPNIK)
+                            mv.setMultiTouchControls(true)
+                            val marker = Marker(mv)
+                            marker.position = point
+                            marker.setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
+                            mv.overlays.add(marker)
+                            mv.overlays.add(MapEventsOverlay(object : MapEventsReceiver {
+                                override fun singleTapConfirmedHelper(p: GeoPoint): Boolean {
+                                    point = p
+                                    marker.position = p
+                                    mv.invalidate()
+                                    return true
+                                }
 
-
-        val startMarker = Marker(binding.map)
-        startMarker.position = startPoint
-        startMarker.setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
-
-        binding.map.overlays.add(startMarker)
-        val mReceive: MapEventsReceiver = object : MapEventsReceiver {
-            override fun singleTapConfirmedHelper(p: GeoPoint): Boolean {
-                startPoint = p
-                startMarker.position = p
-                startMarker.setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
-                binding.map.overlays.add(startMarker)
-                toast(p.latitude.toString() + " - " + p.longitude)
-                return false
+                                override fun longPressHelper(p: GeoPoint) = false
+                            }))
+                            mv.controller.setZoom(12.5)
+                            mv.controller.setCenter(point)
+                        }
+                    }
+                )
             }
-
-            override fun longPressHelper(p: GeoPoint): Boolean {
-                return false
-            }
         }
-        binding.map.overlays.add(MapEventsOverlay(mReceive))
-        val mapController = binding.map.controller
-        mapController.setZoom(12.5)
-
-        mapController.setCenter(startPoint)
-        binding.map.setTileSource(TileSourceFactory.MAPNIK)
-    }
-
-    override fun onBackPressed() {
-        finishWithResult(startPoint)
     }
 
     override fun onResume() {
         super.onResume()
-        
-        
-        
-        
-        binding.map.onResume() 
+        map?.onResume()
     }
 
     override fun onPause() {
         super.onPause()
-        
-        
-        
-        
-        binding.map.onPause()  
+        map?.onPause()
     }
 
-    override fun onRequestPermissionsResult(
-        requestCode: Int,
-        permissions: Array<out String>,
-        grantResults: IntArray
-    ) {
-        val permissionsToRequest = ArrayList<String>()
-        var i = 0
-        while (i < grantResults.size) {
-            permissionsToRequest.add(permissions[i])
-            i++
-        }
-        if (permissionsToRequest.size > 0) {
-            ActivityCompat.requestPermissions(
-                this,
-                permissionsToRequest.toTypedArray(),
-                REQUEST_PERMISSIONS_REQUEST_CODE
-            )
-        }
-    }
-
-    private fun finishWithResult(geoPoint: GeoPoint) {
-        intent.putExtra("latitude", geoPoint.latitude)
-        intent.putExtra("longitude", geoPoint.longitude)
+    private fun finishWithResult() {
+        intent.putExtra("latitude", point.latitude)
+        intent.putExtra("longitude", point.longitude)
         setResult(Activity.RESULT_OK, intent)
-        val imm: InputMethodManager = getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager
-        window.peekDecorView()?.run {
-            imm.hideSoftInputFromWindow(windowToken, 0)
-        }
         finish()
     }
-
 }

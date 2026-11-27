@@ -2,45 +2,81 @@ package top.niunaijun.blackboxa.view.xposed
 
 import android.content.Context
 import android.content.Intent
+import androidx.activity.ComponentActivity
 import android.os.Bundle
-import android.view.LayoutInflater
-import android.view.View
-import android.view.ViewGroup
-import android.widget.ImageView
-import android.widget.Switch
-import android.widget.TextView
-import androidx.recyclerview.widget.LinearLayoutManager
-import androidx.recyclerview.widget.RecyclerView
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.Switch
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import top.niunaijun.blackbox.core.xposed.XposedManager
 import top.niunaijun.blackboxa.R
-import top.niunaijun.blackboxa.databinding.ActivityXposedModulesBinding
-import top.niunaijun.blackboxa.util.inflate
-import top.niunaijun.blackboxa.view.base.BaseActivity
+import top.niunaijun.blackboxa.ui.AppRow
+import top.niunaijun.blackboxa.ui.AppScaffold
+import top.niunaijun.blackboxa.ui.CenterProgress
+import top.niunaijun.blackboxa.ui.EmptyState
+import top.niunaijun.blackboxa.ui.setThemedContent
 import kotlin.concurrent.thread
 
 /** LSPosed-style module list: enable/disable modules and open their scope. */
-class XposedModulesActivity : BaseActivity() {
-    private val binding: ActivityXposedModulesBinding by inflate()
-    private val adapter = ModuleAdapter()
+class XposedModulesActivity : ComponentActivity() {
+    private var modules by mutableStateOf<List<XposedModule>?>(null)
     private var installedPackages: Set<String> = emptySet()
+    private var version by mutableIntStateOf(0)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(binding.root)
-        initToolbar(binding.toolbarLayout.toolbar, R.string.xposed_manager, true)
-        binding.recyclerView.layoutManager = LinearLayoutManager(this)
-        binding.recyclerView.adapter = adapter
+        setThemedContent { Screen() }
     }
 
     override fun onResume() {
         super.onResume()
         thread {
             val apps = XposedRepo.installedApps()
-            val modules = XposedRepo.modules(apps)
+            val list = XposedRepo.modules(apps)
             runOnUiThread {
                 installedPackages = apps.map { it.packageName }.toSet()
-                adapter.submit(modules)
-                binding.empty.visibility = if (modules.isEmpty()) View.VISIBLE else View.GONE
+                modules = list
+                version++
+            }
+        }
+    }
+
+    @Composable
+    private fun Screen() {
+        AppScaffold(title = stringResource(R.string.xposed_manager), onBack = { finish() }) { padding ->
+            val list = modules
+            @Suppress("UNUSED_VARIABLE") val v = version
+            when {
+                list == null -> CenterProgress(Modifier.padding(padding))
+                list.isEmpty() -> EmptyState(stringResource(R.string.xposed_no_modules), Modifier.padding(padding))
+                else -> LazyColumn(contentPadding = padding) {
+                    items(list, key = { it.app.packageName }) { module ->
+                        val pkg = module.app.packageName
+                        val enabled = pkg in XposedManager.loadEnabledModules()
+                        val scope = XposedManager.loadScope(pkg)
+                        val scopeText = when {
+                            !enabled -> stringResource(R.string.xposed_disabled)
+                            scope == null -> stringResource(R.string.xposed_scope_all_apps)
+                            else -> stringResource(R.string.xposed_scope_count, scope.size)
+                        }
+                        AppRow(
+                            icon = module.app.icon,
+                            title = module.app.label,
+                            subtitle = if (module.version.isEmpty()) pkg else "$pkg · ${module.version}",
+                            supporting = listOf(module.description, scopeText).filter { it.isNotEmpty() }.joinToString("\n"),
+                            onClick = { XposedScopeActivity.start(this@XposedModulesActivity, pkg, module.app.label) },
+                            trailing = { Switch(checked = enabled, onCheckedChange = { setEnabled(module, it) }) }
+                        )
+                    }
+                }
             }
         }
     }
@@ -60,54 +96,7 @@ class XposedModulesActivity : BaseActivity() {
             set.remove(module.app.packageName)
         }
         XposedManager.saveEnabledModules(set)
-        adapter.notifyDataSetChanged()
-    }
-
-    private inner class ModuleAdapter : RecyclerView.Adapter<ModuleAdapter.VH>() {
-        private var items: List<XposedModule> = emptyList()
-
-        fun submit(list: List<XposedModule>) {
-            items = list
-            notifyDataSetChanged()
-        }
-
-        override fun onCreateViewHolder(parent: ViewGroup, viewType: Int) = VH(
-            LayoutInflater.from(parent.context).inflate(R.layout.item_xposed_module, parent, false)
-        )
-
-        override fun getItemCount() = items.size
-
-        override fun onBindViewHolder(holder: VH, position: Int) {
-            val module = items[position]
-            val pkg = module.app.packageName
-            val enabled = pkg in XposedManager.loadEnabledModules()
-            holder.icon.setImageDrawable(module.app.icon)
-            holder.name.text = module.app.label
-            holder.pkg.text = if (module.version.isEmpty()) pkg else "$pkg  ·  ${module.version}"
-            holder.desc.text = module.description
-            holder.desc.visibility = if (module.description.isEmpty()) View.GONE else View.VISIBLE
-            val scope = XposedManager.loadScope(pkg)
-            holder.scope.text = when {
-                !enabled -> getString(R.string.xposed_disabled)
-                scope == null -> getString(R.string.xposed_scope_all_apps)
-                else -> getString(R.string.xposed_scope_count, scope.size)
-            }
-            holder.enable.setOnCheckedChangeListener(null)
-            holder.enable.isChecked = enabled
-            holder.enable.setOnCheckedChangeListener { _, checked -> setEnabled(module, checked) }
-            holder.itemView.setOnClickListener {
-                XposedScopeActivity.start(this@XposedModulesActivity, pkg, module.app.label)
-            }
-        }
-
-        inner class VH(view: View) : RecyclerView.ViewHolder(view) {
-            val icon: ImageView = view.findViewById(R.id.icon)
-            val name: TextView = view.findViewById(R.id.name)
-            val pkg: TextView = view.findViewById(R.id.pkg)
-            val desc: TextView = view.findViewById(R.id.desc)
-            val scope: TextView = view.findViewById(R.id.scope)
-            val enable: Switch = view.findViewById(R.id.enable)
-        }
+        version++
     }
 
     companion object {

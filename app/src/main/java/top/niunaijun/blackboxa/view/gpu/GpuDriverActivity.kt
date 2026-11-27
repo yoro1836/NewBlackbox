@@ -4,28 +4,49 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
-import android.view.LayoutInflater
-import android.view.Menu
-import android.view.MenuItem
-import android.view.View
-import android.view.ViewGroup
-import android.widget.TextView
+import androidx.activity.ComponentActivity
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.appcompat.app.AlertDialog
-import androidx.recyclerview.widget.LinearLayoutManager
-import androidx.recyclerview.widget.RecyclerView
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Delete
+import androidx.compose.material.icons.outlined.FileOpen
+import androidx.compose.material.icons.outlined.Memory
+import androidx.compose.material3.ExtendedFloatingActionButton
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.ListItem
+import androidx.compose.material3.ListItemDefaults
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
 import top.niunaijun.blackbox.core.gpu.VulkanDriverManager
 import top.niunaijun.blackboxa.R
-import top.niunaijun.blackboxa.databinding.ActivityGpuDriversBinding
-import top.niunaijun.blackboxa.util.inflate
+import top.niunaijun.blackboxa.ui.AppScaffold
+import top.niunaijun.blackboxa.ui.CenterProgress
+import top.niunaijun.blackboxa.ui.ConfirmDialog
+import top.niunaijun.blackboxa.ui.EmptyState
+import top.niunaijun.blackboxa.ui.setThemedContent
 import top.niunaijun.blackboxa.util.toast
-import top.niunaijun.blackboxa.view.base.BaseActivity
 import kotlin.concurrent.thread
 
 /** Lists imported Vulkan drivers, imports new packages, and opens per-driver scope. */
-class GpuDriverActivity : BaseActivity() {
-    private val binding: ActivityGpuDriversBinding by inflate()
-    private val adapter = DriverAdapter()
+class GpuDriverActivity : ComponentActivity() {
+    private var drivers by mutableStateOf<List<VulkanDriverManager.DriverInfo>?>(null)
+    private var version by mutableIntStateOf(0)
 
     private val importLauncher =
         registerForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
@@ -34,13 +55,8 @@ class GpuDriverActivity : BaseActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(binding.root)
-        initToolbar(binding.toolbarLayout.toolbar, R.string.gpu_manager, true)
-        binding.recyclerView.layoutManager = LinearLayoutManager(this)
-        binding.recyclerView.adapter = adapter
-        if (!VulkanDriverManager.isSupported()) {
-            toast(R.string.gpu_unsupported)
-        }
+        if (!VulkanDriverManager.isSupported()) toast(R.string.gpu_unsupported)
+        setThemedContent { Screen() }
     }
 
     override fun onResume() {
@@ -48,36 +64,87 @@ class GpuDriverActivity : BaseActivity() {
         refresh()
     }
 
-    override fun onCreateOptionsMenu(menu: Menu): Boolean {
-        menuInflater.inflate(R.menu.gpu_driver_menu, menu)
-        return true
-    }
-
-    override fun onOptionsItemSelected(item: MenuItem): Boolean {
-        if (item.itemId == R.id.gpu_import) {
-            // Driver packages are zips; many are served as octet-stream, so accept any file.
-            importLauncher.launch("*/*")
-            return true
+    @OptIn(ExperimentalFoundationApi::class)
+    @Composable
+    private fun Screen() {
+        var deleting by remember { mutableStateOf<VulkanDriverManager.DriverInfo?>(null) }
+        AppScaffold(
+            title = stringResource(R.string.gpu_manager),
+            onBack = { finish() },
+            floatingActionButton = {
+                ExtendedFloatingActionButton(
+                    // Driver packages are zips; many are served as octet-stream, so accept any file.
+                    onClick = { importLauncher.launch("*/*") },
+                    icon = { Icon(Icons.Outlined.FileOpen, null) },
+                    text = { Text(stringResource(R.string.gpu_import)) }
+                )
+            }
+        ) { padding ->
+            val list = drivers
+            @Suppress("UNUSED_VARIABLE") val v = version
+            when {
+                list == null -> CenterProgress(Modifier.padding(padding))
+                list.isEmpty() -> EmptyState(stringResource(R.string.gpu_no_drivers), Modifier.padding(padding))
+                else -> LazyColumn(contentPadding = PaddingValues(
+                    top = padding.calculateTopPadding(), bottom = padding.calculateBottomPadding() + 88.dp
+                )) {
+                    items(list, key = { it.id }) { driver ->
+                        val meta = listOf(driver.vendor, driver.driverVersion).filter { it.isNotEmpty() }.joinToString(" · ")
+                        val count = VulkanDriverManager.appsForDriver(driver.id).size
+                        ListItem(
+                            headlineContent = { Text(driver.name) },
+                            overlineContent = if (meta.isNotEmpty()) ({ Text(meta) }) else null,
+                            supportingContent = {
+                                androidx.compose.foundation.layout.Column {
+                                    if (driver.description.isNotEmpty()) Text(driver.description, maxLines = 3)
+                                    Text(
+                                        if (count == 0) stringResource(R.string.gpu_applies_none)
+                                        else stringResource(R.string.gpu_applies_count, count),
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                }
+                            },
+                            leadingContent = { Icon(Icons.Outlined.Memory, null) },
+                            trailingContent = {
+                                IconButton(onClick = { deleting = driver }) { Icon(Icons.Outlined.Delete, null) }
+                            },
+                            colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                            modifier = Modifier.combinedClickable(
+                                onClick = { GpuDriverScopeActivity.start(this@GpuDriverActivity, driver.id, driver.name) },
+                                onLongClick = { deleting = driver }
+                            )
+                        )
+                    }
+                }
+            }
         }
-        return super.onOptionsItemSelected(item)
+        deleting?.let { driver ->
+            ConfirmDialog(
+                title = driver.name,
+                text = stringResource(R.string.gpu_delete_confirm),
+                confirm = stringResource(R.string.gpu_delete),
+                onConfirm = {
+                    thread {
+                        VulkanDriverManager.deleteDriver(driver.id)
+                        runOnUiThread { toast(R.string.gpu_driver_deleted); refresh() }
+                    }
+                },
+                onDismiss = { deleting = null }
+            )
+        }
     }
 
     private fun refresh() {
         thread {
-            val drivers = VulkanDriverManager.listDrivers()
-            runOnUiThread {
-                adapter.submit(drivers)
-                binding.empty.visibility = if (drivers.isEmpty()) View.VISIBLE else View.GONE
-            }
+            val list = VulkanDriverManager.listDrivers()
+            runOnUiThread { drivers = list; version++ }
         }
     }
 
     private fun importFrom(uri: Uri) {
         thread {
             val result = try {
-                contentResolver.openInputStream(uri)?.use { stream ->
-                    VulkanDriverManager.importDriver(stream)
-                }
+                contentResolver.openInputStream(uri)?.use { VulkanDriverManager.importDriver(it) }
             } catch (e: Exception) {
                 null
             }
@@ -89,70 +156,6 @@ class GpuDriverActivity : BaseActivity() {
                     toast(R.string.gpu_import_failed)
                 }
             }
-        }
-    }
-
-    private fun confirmDelete(driver: VulkanDriverManager.DriverInfo) {
-        AlertDialog.Builder(this)
-            .setTitle(driver.name)
-            .setMessage(R.string.gpu_delete_confirm)
-            .setPositiveButton(R.string.gpu_delete) { _, _ ->
-                thread {
-                    VulkanDriverManager.deleteDriver(driver.id)
-                    runOnUiThread {
-                        toast(R.string.gpu_driver_deleted)
-                        refresh()
-                    }
-                }
-            }
-            .setNegativeButton(android.R.string.cancel, null)
-            .show()
-    }
-
-    private inner class DriverAdapter : RecyclerView.Adapter<DriverAdapter.VH>() {
-        private var items: List<VulkanDriverManager.DriverInfo> = emptyList()
-
-        fun submit(list: List<VulkanDriverManager.DriverInfo>) {
-            items = list
-            notifyDataSetChanged()
-        }
-
-        override fun onCreateViewHolder(parent: ViewGroup, viewType: Int) = VH(
-            LayoutInflater.from(parent.context).inflate(R.layout.item_gpu_driver, parent, false)
-        )
-
-        override fun getItemCount() = items.size
-
-        override fun onBindViewHolder(holder: VH, position: Int) {
-            val driver = items[position]
-            holder.name.text = driver.name
-            val subtitle = listOf(driver.vendor, driver.driverVersion)
-                .filter { it.isNotEmpty() }
-                .joinToString("  ·  ")
-            holder.meta.text = subtitle
-            holder.meta.visibility = if (subtitle.isEmpty()) View.GONE else View.VISIBLE
-            holder.desc.text = driver.description
-            holder.desc.visibility = if (driver.description.isEmpty()) View.GONE else View.VISIBLE
-            val count = VulkanDriverManager.appsForDriver(driver.id).size
-            holder.scope.text = if (count == 0) {
-                getString(R.string.gpu_applies_none)
-            } else {
-                getString(R.string.gpu_applies_count, count)
-            }
-            holder.itemView.setOnClickListener {
-                GpuDriverScopeActivity.start(this@GpuDriverActivity, driver.id, driver.name)
-            }
-            holder.itemView.setOnLongClickListener {
-                confirmDelete(driver)
-                true
-            }
-        }
-
-        inner class VH(view: View) : RecyclerView.ViewHolder(view) {
-            val name: TextView = view.findViewById(R.id.name)
-            val meta: TextView = view.findViewById(R.id.meta)
-            val desc: TextView = view.findViewById(R.id.desc)
-            val scope: TextView = view.findViewById(R.id.scope)
         }
     }
 

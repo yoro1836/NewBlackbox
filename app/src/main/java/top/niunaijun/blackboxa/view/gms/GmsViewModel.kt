@@ -11,7 +11,7 @@ class GmsViewModel(private val mRepo: GmsRepository) : BaseViewModel() {
 
     val mInstalledLiveData = MutableLiveData<List<GmsBean>>()
 
-    val mUpdateInstalledLiveData = MutableLiveData<GmsInstallBean>()
+    val mUpdateInstalledLiveData = MutableLiveData<GmsInstallBean?>()
 
     fun getInstalledUser() {
         launchOnUI {

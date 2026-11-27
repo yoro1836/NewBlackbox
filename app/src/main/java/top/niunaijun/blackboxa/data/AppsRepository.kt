@@ -133,8 +133,8 @@ class AppsRepository {
 
     fun getInstalledAppList(
             userID: Int,
-            loadingLiveData: MutableLiveData<Boolean>,
-            appsLiveData: MutableLiveData<List<InstalledAppBean>>
+            loadingLiveData: MutableLiveData<Boolean?>,
+            appsLiveData: MutableLiveData<List<InstalledAppBean>?>
     ) {
         try {
             loadingLiveData.postValue(true)
@@ -161,7 +161,7 @@ class AppsRepository {
         }
     }
 
-    fun getVmInstallList(userId: Int, appsLiveData: MutableLiveData<List<AppInfo>>) {
+    fun getVmInstallList(userId: Int, appsLiveData: MutableLiveData<List<AppInfo>?>) {
         try {
             
             if (MemoryManager.isMemoryCritical()) {
@@ -357,7 +357,7 @@ class AppsRepository {
         }
     }
 
-    fun installApk(source: String, userId: Int, resultLiveData: MutableLiveData<String>) {
+    fun installApk(source: String, userId: Int, resultLiveData: MutableLiveData<String?>) {
         try {
             
             if (source.contains("blackbox") ||
@@ -412,7 +412,7 @@ class AppsRepository {
         }
     }
 
-    fun unInstall(packageName: String, userID: Int, resultLiveData: MutableLiveData<String>) {
+    fun unInstall(packageName: String, userID: Int, resultLiveData: MutableLiveData<String?>) {
         try {
             BlackBoxCore.get().uninstallPackageAsUser(packageName, userID)
             updateAppSortList(userID, packageName, false)
@@ -424,7 +424,7 @@ class AppsRepository {
         }
     }
 
-    fun launchApk(packageName: String, userId: Int, launchLiveData: MutableLiveData<Boolean>) {
+    fun launchApk(packageName: String, userId: Int, launchLiveData: MutableLiveData<Boolean?>) {
         try {
             val result = BlackBoxCore.get().launchApk(packageName, userId)
             launchLiveData.postValue(result)
@@ -434,7 +434,7 @@ class AppsRepository {
         }
     }
 
-    fun clearApkData(packageName: String, userID: Int, resultLiveData: MutableLiveData<String>) {
+    fun clearApkData(packageName: String, userID: Int, resultLiveData: MutableLiveData<String?>) {
         try {
             BlackBoxCore.get().clearPackage(packageName, userID)
             resultLiveData.postValue(getString(R.string.clear_success))
