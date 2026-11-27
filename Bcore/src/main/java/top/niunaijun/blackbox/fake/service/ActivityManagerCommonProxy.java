@@ -129,6 +129,52 @@ public class ActivityManagerCommonProxy {
         }
     }
 
+    /**
+     * A virtual app starting another virtual app's activity PendingIntent for a result
+     * (startIntentSenderForResult). The platform would launch ProxyPendingActivity, which starts
+     * the target in a new task, so the result and getCallingActivity are lost (microG's
+     * GamesSignInActivity then finishes at once). Start the stored target directly instead.
+     *
+     * startActivityIntentSender(caller, target, whitelistToken, fillInIntent, resolvedType,
+     *         resultTo, resultWho, requestCode, flagsMask, flagsValues, options)
+     */
+    @ProxyMethod("startActivityIntentSender")
+    public static class StartActivityIntentSender extends MethodHook {
+        @Override
+        protected Object hook(Object who, Method method, Object[] args) throws Throwable {
+            try {
+                if (args.length >= 11 && args[1] instanceof android.os.IInterface
+                        && args[5] instanceof IBinder && args[7] instanceof Integer
+                        && (int) args[7] >= 0) {
+                    IBinder sender = ((android.os.IInterface) args[1]).asBinder();
+                    Intent target = BlackBoxCore.getBActivityManager().getIntentSenderTarget(sender);
+                    if (target != null) {
+                        Intent intent = new Intent(target);
+                        if (args[3] instanceof Intent) {
+                            intent.fillIn((Intent) args[3], 0);
+                        }
+                        int mask = args[8] instanceof Integer ? (int) args[8] : 0;
+                        int values = args[9] instanceof Integer ? (int) args[9] : 0;
+                        values &= mask;
+                        intent.setFlags((intent.getFlags() & ~mask) | values);
+                        Slog.d(TAG, "startActivityIntentSender -> " + intent);
+                        return BlackBoxCore.getBActivityManager().startActivityAms(BActivityThread.getUserId(),
+                                intent,
+                                (String) args[4],
+                                (IBinder) args[5],
+                                (String) args[6],
+                                (int) args[7],
+                                0,
+                                args[10] instanceof Bundle ? (Bundle) args[10] : null);
+                    }
+                }
+            } catch (Throwable e) {
+                Slog.w(TAG, "startActivityIntentSender: " + e);
+            }
+            return method.invoke(who, args);
+        }
+    }
+
     @ProxyMethod("startActivities")
     public static class StartActivities extends MethodHook {
         @Override

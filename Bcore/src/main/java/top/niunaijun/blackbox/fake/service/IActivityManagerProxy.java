@@ -727,10 +727,12 @@ public class IActivityManagerProxy extends ClassInvocationStub {
             Intent[] intents = (Intent[]) args[getIntentsIndex(args)];
             MethodParameterUtils.replaceFirstAppPkg(args);
 
+            Intent activityTarget = null;
             for (int i = 0; i < intents.length; i++) {
                 Intent intent = intents[i];
                 switch (type) {
                     case ActivityManagerCompat.INTENT_SENDER_ACTIVITY:
+                        activityTarget = intent;
                         Intent shadow = new Intent();
                         shadow.setComponent(new ComponentName(BlackBoxCore.getHostPkg(), ProxyManifest.getProxyPendingActivity(BActivityThread.getAppPid())));
                         ProxyPendingRecord.saveStub(shadow, intent, BActivityThread.getUserId());
@@ -757,6 +759,9 @@ public class IActivityManagerProxy extends ClassInvocationStub {
                     creator = packagesForUid.length < 1 ? BlackBoxCore.getHostPkg() : packagesForUid[0];
                 }
                 BlackBoxCore.getBActivityManager().getIntentSender(invoke.asBinder(), creator, creatorUid);
+                if (activityTarget != null && intents.length == 1) {
+                    BlackBoxCore.getBActivityManager().setIntentSenderTarget(invoke.asBinder(), activityTarget);
+                }
             }
             return invoke;
         }

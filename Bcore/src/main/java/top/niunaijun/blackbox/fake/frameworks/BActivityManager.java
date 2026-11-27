@@ -431,6 +431,23 @@ public class BActivityManager extends BlackManager<IBActivityManagerService> {
         }
     }
 
+    public void setIntentSenderTarget(IBinder target, Intent intent) {
+        try {
+            getService().setIntentSenderTarget(target, intent, BActivityThread.getUserId());
+        } catch (Throwable e) {
+            e.printStackTrace();
+        }
+    }
+
+    public Intent getIntentSenderTarget(IBinder target) {
+        try {
+            return getService().getIntentSenderTarget(target, BActivityThread.getUserId());
+        } catch (Throwable e) {
+            e.printStackTrace();
+        }
+        return null;
+    }
+
     public String getPackageForIntentSender(IBinder target) {
         try {
             return getService().getPackageForIntentSender(target, BActivityThread.getUserId());

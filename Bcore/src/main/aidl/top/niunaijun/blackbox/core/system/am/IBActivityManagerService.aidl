@@ -58,6 +58,10 @@ interface IBActivityManagerService {
     void getIntentSender(in IBinder target, String packageName, int uid, int userId);
     String getPackageForIntentSender(in IBinder target, int userId);
     int getUidForIntentSender(in IBinder target, int userId);
+    // Original virtual target of an activity PendingIntent, so a virtual caller starting it
+    // for a result can start the target itself and keep the result chain.
+    void setIntentSenderTarget(in IBinder target, in Intent intent, int userId);
+    Intent getIntentSenderTarget(in IBinder target, int userId);
 
     // Virtual uid of the virtual process running as the given real pid, or -1 if none.
     int getBUidByPid(int pid);

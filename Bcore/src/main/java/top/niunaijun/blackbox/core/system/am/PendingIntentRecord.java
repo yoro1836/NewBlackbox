@@ -6,6 +6,7 @@ import java.util.Objects;
 public class PendingIntentRecord {
     public int uid;
     public String packageName;
+    public android.content.Intent target;
 
     @Override
     public boolean equals(Object o) {

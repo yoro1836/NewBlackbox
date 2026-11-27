@@ -276,6 +276,28 @@ public class BActivityManagerService extends IBActivityManagerService.Stub imple
     }
 
     @Override
+    public void setIntentSenderTarget(IBinder target, Intent intent, int userId) {
+        UserSpace userSpace = getOrCreateSpaceLocked(userId);
+        synchronized (userSpace.mIntentSenderRecords) {
+            PendingIntentRecord record = userSpace.mIntentSenderRecords.get(target);
+            if (record == null) {
+                record = new PendingIntentRecord();
+                userSpace.mIntentSenderRecords.put(target, record);
+            }
+            record.target = intent;
+        }
+    }
+
+    @Override
+    public Intent getIntentSenderTarget(IBinder target, int userId) {
+        UserSpace userSpace = getOrCreateSpaceLocked(userId);
+        synchronized (userSpace.mIntentSenderRecords) {
+            PendingIntentRecord record = userSpace.mIntentSenderRecords.get(target);
+            return record == null ? null : record.target;
+        }
+    }
+
+    @Override
     public int getBUidByPid(int pid) throws RemoteException {
         ProcessRecord record = BProcessManagerService.get().findProcessByPid(pid);
         return record == null ? -1 : BUserHandle.getAppId(record.buid);
