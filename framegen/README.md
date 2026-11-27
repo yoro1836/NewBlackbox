@@ -36,6 +36,11 @@ Per app, written by the app UI to `files/framegen/<pkg>.txt`:
 `fg=0|1;target=<fps>;scale=<percent>;engine=lsfg;mult=2..4;lowlat=0|1;edge=0|1`; the app
 adds `log=<file>` and `lsfg=<pack>`.
 
+## Tests
+
+`tests/lsfg-host/run.sh <pack>`: the LSFG engine on lavapipe with a synthetic
+forward-driving scene; prints error by screen region (centre, middle, outer 5%).
+
 ## Licences
 
 The wrapper and the LSFG engine: Apache-2.0, like NewBlackbox. FidelityFX SDK: MIT
