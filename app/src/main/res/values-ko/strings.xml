@@ -141,6 +141,8 @@
     <string name="framegen_target">목표 fps</string>
     <string name="framegen_scale">흐름 해상도</string>
     <string name="framegen_scale_hint">광학 흐름만 이 크기로 계산하고, 생성 프레임은 항상 원본 크기예요. 낮을수록 빨라요.</string>
+    <string name="framegen_lowlat">저지연 모드</string>
+    <string name="framegen_lowlat_hint">게임이 GPU보다 한 프레임 넘게 앞서 쌓지 못하게 해서 입력 지연을 줄여요. GPU가 빠듯한 게임은 fps가 조금 떨어질 수 있어요.</string>
     <string name="framegen_engine">엔진</string>
     <string name="framegen_engine_fsr">FSR 3.1</string>
     <string name="framegen_engine_lsfg">LSFG</string>

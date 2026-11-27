@@ -153,6 +153,8 @@
     <string name="framegen_target">Target fps</string>
     <string name="framegen_scale">Flow resolution</string>
     <string name="framegen_scale_hint">Optical flow runs at this size; the generated frame is always full size. Lower is faster.</string>
+    <string name="framegen_lowlat">Low latency mode</string>
+    <string name="framegen_lowlat_hint">Keeps the game from queuing more than one frame ahead of the GPU, so input feels faster. GPU-bound games may lose a few fps.</string>
     <string name="framegen_engine">Engine</string>
     <string name="framegen_engine_fsr">FSR 3.1</string>
     <string name="framegen_engine_lsfg">LSFG</string>

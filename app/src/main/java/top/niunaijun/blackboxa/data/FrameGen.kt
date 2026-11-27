@@ -16,11 +16,13 @@ data class FrameGenConfig(
     val engine: String = ENGINE_FSR,
     /** LSFG: most output frames per game frame. */
     val mult: Int = 2,
+    /** The game queues at most one frame ahead of the GPU: less input delay. */
+    val lowLatency: Boolean = false,
 ) {
     val lsfg get() = engine == ENGINE_LSFG
 
     fun encode() = "fg=${if (on) 1 else 0};extra=${if (extrapolate && !lsfg) 1 else 0};target=$target;scale=$scale" +
-        ";engine=$engine;mult=$mult"
+        ";engine=$engine;mult=$mult;lowlat=${if (lowLatency) 1 else 0}"
 
     companion object {
         const val ENGINE_FSR = "fsr"
@@ -58,6 +60,7 @@ object FrameGen {
             scale = kv["scale"]?.toIntOrNull()?.coerceIn(25, 100) ?: 75,
             engine = if (kv["engine"] == FrameGenConfig.ENGINE_LSFG) FrameGenConfig.ENGINE_LSFG else FrameGenConfig.ENGINE_FSR,
             mult = kv["mult"]?.toIntOrNull()?.coerceIn(2, 4) ?: 2,
+            lowLatency = kv["lowlat"] == "1",
         )
     }
 

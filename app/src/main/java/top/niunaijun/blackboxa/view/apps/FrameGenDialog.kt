@@ -117,6 +117,18 @@ fun FrameGenDialog(app: AppInfo, onDismiss: () -> Unit) {
                         style = MaterialTheme.typography.titleSmall)
                     Switch(checked = cfg.on, enabled = available, onCheckedChange = { cfg = cfg.copy(on = it) })
                 }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text(stringResource(R.string.framegen_lowlat), style = MaterialTheme.typography.titleSmall)
+                        Text(
+                            stringResource(R.string.framegen_lowlat_hint),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Switch(checked = cfg.lowLatency, enabled = available,
+                        onCheckedChange = { cfg = cfg.copy(lowLatency = it) })
+                }
                 Spacer(Modifier.height(12.dp))
                 Text(stringResource(R.string.framegen_engine), style = MaterialTheme.typography.titleSmall)
                 Spacer(Modifier.height(6.dp))

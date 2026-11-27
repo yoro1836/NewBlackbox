@@ -153,6 +153,7 @@ VkFormat UnormOf(VkFormat f) {
 
 constexpr int kSlots = 2;  // kSlots * (kMaxMult - 1) descriptor copies; ZeroFG allows 8
 constexpr int kMaxMult = 4;  // outputs per game frame
+static_assert(kSlots == 2, "low latency mode takes the other slot as the previous frame");
 static_assert(kSlots * (kMaxMult - 1) <= 8, "ZeroFG takes at most 8 frame contexts");
 int g_max_mult = kMaxMult;  // from settings
 int g_target = 120;         // output fps the user wants (target=); paces and decides generation
@@ -167,6 +168,10 @@ bool g_extra = false;       // AMD engine extrapolates (extra=1): no added laten
 // LSFG engine (engine=lsfg): Lossless Scaling's shaders from the user's own
 // Lossless.dll (lsfg= names the pack the app made from it), 2x .. 4x (mult=).
 bool g_lsfg = false;
+// Low latency (lowlat=1): a present returns only once the GPU has finished the
+// game's previous frame, so the game queues at most one frame ahead of the GPU
+// (like "max pre-rendered frames = 1"). Costs a little fps on GPU-bound games.
+bool g_lowlat = false;
 lsfg::ShaderPack g_pack;
 std::set<uint32_t> g_lsfg_caps;
 bool LsfgCap(uint32_t c) { return g_lsfg_caps.count(c) != 0; }
@@ -1415,7 +1420,13 @@ VKAPI_ATTR VkResult VKAPI_CALL HookQueuePresentKHR(VkQueue queue, const VkPresen
         s->failed = true;
       }
     }
-    if (s->ready && s->family == family) return FgPresent(s, queue, pi);
+    if (s->ready && s->family == family) {
+      const VkResult r = FgPresent(s, queue, pi);
+      // The other slot holds the previous frame (kSlots == 2); the next present
+      // would wait for it anyway, this only moves the wait before the game's next frame.
+      if (g_lowlat) d->WaitForFences(d->handle, 1, &s->fence[s->slot], VK_TRUE, 100'000'000);
+      return r;
+    }
   }
   return d->QueuePresentKHR(queue, pi);
 }
@@ -1532,6 +1543,7 @@ BBW_EXPORT bool bb_vulkan_wrapper_init(void* real, const char* config) {
       if (k == "target") g_target = std::clamp(atoi(v.c_str()), 30, 165);
       if (k == "scale") g_scale = std::clamp(atoi(v.c_str()), 25, 100);
       if (k == "engine") g_lsfg = v == "lsfg";
+      if (k == "lowlat") g_lowlat = v == "1";
       if (k == "mult") g_max_mult = std::clamp(atoi(v.c_str()), 2, kMaxMult);
       if (k == "lsfg") pack = v;
     }
@@ -1567,8 +1579,8 @@ BBW_EXPORT bool bb_vulkan_wrapper_init(void* real, const char* config) {
   if (!bbw_p_##name) ++missing;
 #include "trampolines.inc"
 #undef BBW_TRAMPOLINE
-  LOGI("wrapper ready (frame generation %s%s, %d exports missing in the real loader)", g_enabled ? "on" : "off",
-       g_lsfg ? ", LSFG" : ", AMD FidelityFX", missing);
+  LOGI("wrapper ready (frame generation %s%s%s, %d exports missing in the real loader)", g_enabled ? "on" : "off",
+       g_lsfg ? ", LSFG" : ", AMD FidelityFX", g_lowlat ? ", low latency" : "", missing);
   return true;
 }
 

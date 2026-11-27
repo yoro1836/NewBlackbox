@@ -31,7 +31,7 @@ for the FidelityFX shader permutations. Submodule: `git submodule update --init`
 ## Config
 
 Per app, written by the app UI to `files/framegen/<pkg>.txt`:
-`fg=0|1;extra=0|1;target=<fps>;scale=<percent>;engine=fsr|lsfg;mult=2..4`; the app
+`fg=0|1;extra=0|1;target=<fps>;scale=<percent>;engine=fsr|lsfg;mult=2..4;lowlat=0|1`; the app
 adds `log=<file>` and `lsfg=<pack>`.
 
 ## Licences
