@@ -11,14 +11,15 @@ for the FidelityFX shader permutations. Submodule: `git submodule update --init`
 
 ## Engines
 
-- **FSR 3.1** (`engine=fsr`, default): AMD FidelityFX optical flow + frame
-  interpolation, 2x, interpolating or extrapolating. `ffx/`, `third_party/fidelityfx`.
+- **FSR 3.1** (`engine=fsr`): AMD FidelityFX optical flow + frame interpolation,
+  2x. Taken out of the app UI for now (code kept). `ffx/`, `third_party/fidelityfx`.
 - **LSFG** (`engine=lsfg`): runs the frame generation shaders of Lossless Scaling,
   2x .. 4x. The shaders are not in this repo: the app extracts them from the
   user's own `Lossless.dll` (Settings -> Frame generation -> LSFG -> Import) into
   `files/framegen/lsfg-shaders.pack` (app `LsfgPack.kt`). `lsfg/` is our own code;
   its pass graph follows the public description in lsfg-vk / Eden, nothing is
-  copied from them.
+  copied from them. `lsfg/shaders/edge.comp` is our own pass after generate that
+  blends the screen border toward the real frame closest in time (`edge=`).
 
 ## Layout
 
@@ -31,7 +32,7 @@ for the FidelityFX shader permutations. Submodule: `git submodule update --init`
 ## Config
 
 Per app, written by the app UI to `files/framegen/<pkg>.txt`:
-`fg=0|1;extra=0|1;target=<fps>;scale=<percent>;engine=fsr|lsfg;mult=2..4;lowlat=0|1`; the app
+`fg=0|1;target=<fps>;scale=<percent>;engine=lsfg;mult=2..4;lowlat=0|1;edge=<percent>`; the app
 adds `log=<file>` and `lsfg=<pack>`.
 
 ## Licences

@@ -12,17 +12,19 @@ data class FrameGenConfig(
     val target: Int = 120,
     /** Optical flow resolution, percent per axis. */
     val scale: Int = 75,
-    /** Engine: [ENGINE_FSR] (FSR 3.1, 2x) or [ENGINE_LSFG] (Lossless Scaling's shaders, 2x .. 4x). */
-    val engine: String = ENGINE_FSR,
+    /** Engine: only [ENGINE_LSFG] is offered now (FSR 3.1 was taken out of the UI). */
+    val engine: String = ENGINE_LSFG,
     /** LSFG: most output frames per game frame. */
     val mult: Int = 2,
     /** The game queues at most one frame ahead of the GPU: less input delay. */
     val lowLatency: Boolean = false,
+    /** LSFG: screen border blended toward the real frame, percent per axis (0: off). */
+    val edge: Int = 6,
 ) {
     val lsfg get() = engine == ENGINE_LSFG
 
     fun encode() = "fg=${if (on) 1 else 0};extra=${if (extrapolate && !lsfg) 1 else 0};target=$target;scale=$scale" +
-        ";engine=$engine;mult=$mult;lowlat=${if (lowLatency) 1 else 0}"
+        ";engine=$engine;mult=$mult;lowlat=${if (lowLatency) 1 else 0};edge=$edge"
 
     companion object {
         const val ENGINE_FSR = "fsr"
@@ -58,9 +60,10 @@ object FrameGen {
             extrapolate = kv["extra"] == "1",
             target = kv["target"]?.toIntOrNull()?.coerceIn(30, 165) ?: 120,
             scale = kv["scale"]?.toIntOrNull()?.coerceIn(25, 100) ?: 75,
-            engine = if (kv["engine"] == FrameGenConfig.ENGINE_LSFG) FrameGenConfig.ENGINE_LSFG else FrameGenConfig.ENGINE_FSR,
+            engine = FrameGenConfig.ENGINE_LSFG,
             mult = kv["mult"]?.toIntOrNull()?.coerceIn(2, 4) ?: 2,
             lowLatency = kv["lowlat"] == "1",
+            edge = kv["edge"]?.toIntOrNull()?.coerceIn(0, 20) ?: 6,
         )
     }
 

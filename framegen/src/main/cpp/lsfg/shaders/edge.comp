@@ -1,0 +1,31 @@
+#version 450
+#extension GL_EXT_samplerless_texture_functions : require
+// Our own pass, after LSFG's generate: near the screen border, where content moves
+// in from outside and the flow has nothing to match, blend the generated frame
+// toward the real frame closest in time. band (in the constants' first pad word)
+// is the blended width as a fraction of each axis; the outer half is all real.
+layout(local_size_x = 8, local_size_y = 8) in;
+layout(set = 0, binding = 0) uniform Constants {
+  uvec2 input_offset;
+  uint first_iter, first_iter_s, advanced_color_kind, hdr_support;
+  float resolution_inv_scale, timestamp, ui_threshold;
+  float band;
+} c;
+layout(set = 0, binding = 1) uniform texture2D prev_frame;
+layout(set = 0, binding = 2) uniform texture2D cur_frame;
+layout(set = 0, binding = 3) uniform texture2D generated;
+layout(set = 0, binding = 4) uniform writeonly image2D outi;
+
+void main() {
+  const ivec2 size = textureSize(generated, 0);
+  const ivec2 p = ivec2(gl_GlobalInvocationID.xy);
+  if (p.x >= size.x || p.y >= size.y) return;
+  const vec2 bw = max(vec2(size) * c.band, vec2(1.0));
+  const vec2 d = vec2(min(p, size - 1 - p));
+  const vec2 w2 = 1.0 - smoothstep(bw * 0.5, bw, d);
+  const float w = max(w2.x, w2.y);
+  if (w <= 0.0) return;
+  const vec4 g = texelFetch(generated, p, 0);
+  const vec4 r = c.timestamp < 0.5 ? texelFetch(prev_frame, p, 0) : texelFetch(cur_frame, p, 0);
+  imageStore(outi, p, mix(g, r, w));
+}

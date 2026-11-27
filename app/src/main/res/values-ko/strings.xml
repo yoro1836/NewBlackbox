@@ -130,7 +130,7 @@
     <string name="disable_gms_hint">이 사용자의 Google 서비스를 지울까요? 로그인한 계정과 Google 서비스 데이터가 지워집니다.</string>
     <string name="no_gms">이 기기에 Google 서비스가 없습니다.</string>
     <string name="framegen">프레임 생성</string>
-    <string name="framegen_hint">앱 안의 Vulkan 게임 프레임을 늘려요 (FSR 3.1 또는 LSFG). 앱을 다시 시작하면 적용돼요.</string>
+    <string name="framegen_hint">앱 안의 Vulkan 게임 프레임을 늘려요 (LSFG). 앱을 다시 시작하면 적용돼요.</string>
     <string name="framegen_missing">이 빌드에 프레임 생성 라이브러리가 없어요.</string>
     <string name="framegen_enable">프레임 생성 사용</string>
     <string name="framegen_mode">방식</string>
@@ -143,6 +143,9 @@
     <string name="framegen_scale_hint">광학 흐름만 이 크기로 계산하고, 생성 프레임은 항상 원본 크기예요. 낮을수록 빨라요.</string>
     <string name="framegen_lowlat">저지연 모드</string>
     <string name="framegen_lowlat_hint">게임이 GPU보다 한 프레임 넘게 앞서 쌓지 못하게 해서 입력 지연을 줄여요. GPU가 빠듯한 게임은 fps가 조금 떨어질 수 있어요.</string>
+    <string name="framegen_edge">가장자리 보정</string>
+    <string name="framegen_edge_hint">화면 테두리에서 빠르게 들어오는 부분은 움직임을 못 찾아 깨지기 쉬워요. 이 폭만큼은 실제 프레임 쪽으로 부드럽게 섞어서 깨짐을 가려요. 넓을수록 테두리가 덜 부드러워 보여요.</string>
+    <string name="framegen_edge_off">끔</string>
     <string name="framegen_engine">엔진</string>
     <string name="framegen_engine_fsr">FSR 3.1</string>
     <string name="framegen_engine_lsfg">LSFG</string>

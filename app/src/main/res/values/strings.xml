@@ -142,7 +142,7 @@
     <string name="fake_location_pick">Pick location</string>
     <string name="fake_location_use">Use this location</string>
     <string name="framegen">Frame generation</string>
-    <string name="framegen_hint">Raises the frame rate of Vulkan games inside the app (FSR 3.1 or LSFG). Applies the next time the app starts.</string>
+    <string name="framegen_hint">Raises the frame rate of Vulkan games inside the app (LSFG). Applies the next time the app starts.</string>
     <string name="framegen_missing">The frame generation library is missing from this build.</string>
     <string name="framegen_enable">Use frame generation</string>
     <string name="framegen_mode">Mode</string>
@@ -155,6 +155,9 @@
     <string name="framegen_scale_hint">Optical flow runs at this size; the generated frame is always full size. Lower is faster.</string>
     <string name="framegen_lowlat">Low latency mode</string>
     <string name="framegen_lowlat_hint">Keeps the game from queuing more than one frame ahead of the GPU, so input feels faster. GPU-bound games may lose a few fps.</string>
+    <string name="framegen_edge">Edge fix</string>
+    <string name="framegen_edge_hint">Fast motion entering at the screen border has nothing to match and breaks up. This much of the border is blended toward the real frame to hide it. Wider looks less smooth at the border.</string>
+    <string name="framegen_edge_off">Off</string>
     <string name="framegen_engine">Engine</string>
     <string name="framegen_engine_fsr">FSR 3.1</string>
     <string name="framegen_engine_lsfg">LSFG</string>

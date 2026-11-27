@@ -17,3 +17,17 @@ add_library(zfg_vk SHARED vkwrap/wrap.cc vkwrap/trampolines.S lsfg/lsfg.cc)
 target_include_directories(zfg_vk PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(zfg_vk PRIVATE zerofg::zerofg amdfg nativewindow log dl)
 target_compile_options(zfg_vk PRIVATE -fvisibility=hidden)
+
+# Our own LSFG edge pass, compiled to a C initializer list for lsfg.cc.
+set(EDGE_SPV ${CMAKE_CURRENT_BINARY_DIR}/lsfg_gen/edge.spv.inc)
+set(EDGE_SRC ${CMAKE_CURRENT_SOURCE_DIR}/lsfg/shaders/edge.comp)
+if(NOT LSFG_GLSLC)
+  set(LSFG_GLSLC ${ANDROID_NDK}/shader-tools/linux-x86_64/glslc)
+endif()
+add_custom_command(OUTPUT ${EDGE_SPV}
+  COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/lsfg_gen
+  COMMAND ${LSFG_GLSLC} -O -fshader-stage=compute -mfmt=c ${EDGE_SRC} -o ${EDGE_SPV}
+  DEPENDS ${EDGE_SRC} COMMENT "LSFG edge pass")
+set_source_files_properties(lsfg/lsfg.cc PROPERTIES OBJECT_DEPENDS ${EDGE_SPV})
+target_sources(zfg_vk PRIVATE ${EDGE_SPV})
+target_include_directories(zfg_vk PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/lsfg_gen)

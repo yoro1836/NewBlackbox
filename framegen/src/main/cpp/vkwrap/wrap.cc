@@ -172,6 +172,8 @@ bool g_lsfg = false;
 // game's previous frame, so the game queues at most one frame ahead of the GPU
 // (like "max pre-rendered frames = 1"). Costs a little fps on GPU-bound games.
 bool g_lowlat = false;
+int g_edge = 0;  // LSFG edge blend width, % per axis (edge=)
+bool g_write_no_format = false;  // the device has shaderStorageImageWriteWithoutFormat
 lsfg::ShaderPack g_pack;
 std::set<uint32_t> g_lsfg_caps;
 bool LsfgCap(uint32_t c) { return g_lsfg_caps.count(c) != 0; }
@@ -418,7 +420,8 @@ bool InitSwap(Swap* s, uint32_t family) {
     g_inst.mem_props(d->phys, &mem);
     const VkImageView frames[2] = {s->real[0].view, s->real[1].view};
     s->lsfg = lsfg::Engine::Create(d->phys, d->handle, real_gdpa, mem, g_pack, s->extent.width, s->extent.height,
-                                   frames, s->gen.view, float(g_scale) / 100.f, &err);
+                                   frames, s->gen.view, float(g_scale) / 100.f,
+                                   g_write_no_format ? float(g_edge) / 100.f : 0.f, &err);
     if (!s->lsfg) {
       LOGW("LSFG engine: %s", err.c_str());
       return false;
@@ -428,8 +431,8 @@ bool InitSwap(Swap* s, uint32_t family) {
       if (d->GetRefreshCycleDurationGOOGLE(d->handle, s->handle, &rc) == VK_SUCCESS && rc.refreshDuration)
         s->refresh_ns = rc.refreshDuration;
     }
-    LOGI("LSFG ready (up to %dx, flow at %d%%): %ux%u format %d, refresh %.2f ms", g_max_mult, g_scale,
-         s->extent.width, s->extent.height, s->format, s->refresh_ns / 1e6);
+    LOGI("LSFG ready (up to %dx, flow at %d%%, edge blend %d%%): %ux%u format %d, refresh %.2f ms", g_max_mult,
+         g_scale, g_write_no_format ? g_edge : 0, s->extent.width, s->extent.height, s->format, s->refresh_ns / 1e6);
     return true;
   }
   if (g_amd) {
@@ -1148,6 +1151,7 @@ VKAPI_ATTR VkResult VKAPI_CALL HookCreateDevice(VkPhysicalDevice phys, const VkD
         if (LsfgCap(22)) f.shaderInt16 = VK_TRUE;
         if (LsfgCap(55)) f.shaderStorageImageReadWithoutFormat = VK_TRUE;
         f.shaderStorageImageWriteWithoutFormat = f2.features.shaderStorageImageWriteWithoutFormat;
+        g_write_no_format = f2.features.shaderStorageImageWriteWithoutFormat;
       }
       if (g_amd) {
         f.shaderStorageImageWriteWithoutFormat = VK_TRUE;
@@ -1544,18 +1548,22 @@ BBW_EXPORT bool bb_vulkan_wrapper_init(void* real, const char* config) {
       if (k == "scale") g_scale = std::clamp(atoi(v.c_str()), 25, 100);
       if (k == "engine") g_lsfg = v == "lsfg";
       if (k == "lowlat") g_lowlat = v == "1";
+      if (k == "edge") g_edge = std::clamp(atoi(v.c_str()), 0, 20);
       if (k == "mult") g_max_mult = std::clamp(atoi(v.c_str()), 2, kMaxMult);
       if (k == "lsfg") pack = v;
     }
     pos = end + 1;
   }
-  // FSR 3.1 (the default, 2x only) or LSFG; the ZeroFG One/Zero engines were dropped.
+  // LSFG only: the app no longer offers FSR 3.1 (its code stays for now; engine=fsr
+  // in a config still selects it). Without the shaders, no frame generation.
   g_zero = false;
   if (g_lsfg) {
     std::string err;
     if (pack.empty() || !lsfg::LoadPack(pack.c_str(), &g_pack, &err)) {
-      LOGW("LSFG shaders not loaded (%s); using FSR 3.1", pack.empty() ? "no pack given" : err.c_str());
+      LOGW("LSFG shaders not loaded (%s); frame generation off. Import Lossless.dll in the app.",
+           pack.empty() ? "no pack given" : err.c_str());
       g_lsfg = false;
+      g_enabled = false;
     } else {
       g_lsfg_caps = lsfg::Capabilities(g_pack);
       std::string caps;

@@ -48,6 +48,7 @@ import top.niunaijun.blackboxa.data.LsfgPack
 private val TARGETS = listOf(60, 90, 120, 144)
 private val SCALES = listOf(50, 67, 75, 100)
 private val MULTS = listOf(2, 3, 4)
+private val EDGES = listOf(0, 3, 6, 10)
 
 /** Per-app frame generation settings; they apply the next time the app starts. */
 @Composable
@@ -56,6 +57,7 @@ fun FrameGenDialog(app: AppInfo, onDismiss: () -> Unit) {
     var cfg by remember { mutableStateOf(FrameGen.get(context, app.packageName)) }
     var showLog by remember { mutableStateOf(false) }
     val available = remember { FrameGen.library(context) != null }
+    val offLabel = stringResource(R.string.framegen_edge_off)
     var packReady by remember { mutableStateOf(LsfgPack.installed(context)) }
     var importing by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
@@ -130,20 +132,7 @@ fun FrameGenDialog(app: AppInfo, onDismiss: () -> Unit) {
                         onCheckedChange = { cfg = cfg.copy(lowLatency = it) })
                 }
                 Spacer(Modifier.height(12.dp))
-                Text(stringResource(R.string.framegen_engine), style = MaterialTheme.typography.titleSmall)
-                Spacer(Modifier.height(6.dp))
-                SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
-                    listOf(FrameGenConfig.ENGINE_FSR to R.string.framegen_engine_fsr,
-                        FrameGenConfig.ENGINE_LSFG to R.string.framegen_engine_lsfg)
-                        .forEachIndexed { i, (engine, label) ->
-                            SegmentedButton(
-                                selected = cfg.engine == engine,
-                                onClick = { cfg = cfg.copy(engine = engine) },
-                                shape = SegmentedButtonDefaults.itemShape(i, 2)
-                            ) { Text(stringResource(label)) }
-                        }
-                }
-                if (cfg.lsfg) {
+                run {
                     Text(
                         stringResource(if (packReady) R.string.framegen_lsfg_ready else R.string.framegen_lsfg_missing),
                         style = MaterialTheme.typography.bodySmall,
@@ -162,26 +151,6 @@ fun FrameGenDialog(app: AppInfo, onDismiss: () -> Unit) {
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
-                if (!cfg.lsfg) {
-                Spacer(Modifier.height(12.dp))
-                Text(stringResource(R.string.framegen_mode), style = MaterialTheme.typography.titleSmall)
-                Spacer(Modifier.height(6.dp))
-                SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
-                    listOf(false to R.string.framegen_interpolate, true to R.string.framegen_extrapolate)
-                        .forEachIndexed { i, (extra, label) ->
-                            SegmentedButton(
-                                selected = cfg.extrapolate == extra,
-                                onClick = { cfg = cfg.copy(extrapolate = extra) },
-                                shape = SegmentedButtonDefaults.itemShape(i, 2)
-                            ) { Text(stringResource(label)) }
-                        }
-                }
-                Text(
-                    stringResource(if (cfg.extrapolate) R.string.framegen_extrapolate_hint else R.string.framegen_interpolate_hint),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                }
                 Spacer(Modifier.height(12.dp))
                 Text(stringResource(R.string.framegen_target), style = MaterialTheme.typography.titleSmall)
                 ChipRow(TARGETS, cfg.target, { "$it" }) { cfg = cfg.copy(target = it) }
@@ -190,6 +159,14 @@ fun FrameGenDialog(app: AppInfo, onDismiss: () -> Unit) {
                 ChipRow(SCALES, cfg.scale, { "$it%" }) { cfg = cfg.copy(scale = it) }
                 Text(
                     stringResource(R.string.framegen_scale_hint),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(Modifier.height(8.dp))
+                Text(stringResource(R.string.framegen_edge), style = MaterialTheme.typography.titleSmall)
+                ChipRow(EDGES, cfg.edge, { if (it == 0) offLabel else "$it%" }) { cfg = cfg.copy(edge = it) }
+                Text(
+                    stringResource(R.string.framegen_edge_hint),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
