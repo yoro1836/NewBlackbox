@@ -37,4 +37,9 @@
     <string name="microg_settings_failed">microG 설정을 열 수 없습니다</string>
     <string name="gms_kind_microg">microG</string>
     <string name="gms_kind_host">기기 GMS</string>
+    <string name="google_sign_out">로그아웃</string>
+    <string name="google_no_accounts">이 사용자에 로그인된 Google 계정이 없습니다</string>
+    <string name="google_sign_out_confirm">%s 계정을 이 사용자의 Google 서비스에서 로그아웃할까요? 이 계정을 쓰던 앱도 로그아웃됩니다.</string>
+    <string name="google_signed_out">로그아웃했습니다</string>
+    <string name="google_sign_out_failed">로그아웃하지 못했습니다</string>
 </resources>

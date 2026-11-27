@@ -111,4 +111,9 @@
     <string name="microg_settings_failed">Could not open the microG settings</string>
     <string name="gms_kind_microg">microG</string>
     <string name="gms_kind_host">Device GMS</string>
+    <string name="google_sign_out">Sign out</string>
+    <string name="google_no_accounts">No Google account is signed in for this user</string>
+    <string name="google_sign_out_confirm">Sign %s out of this user\'s Google services? Apps using it will be signed out.</string>
+    <string name="google_signed_out">Signed out</string>
+    <string name="google_sign_out_failed">Could not sign out</string>
 </resources>

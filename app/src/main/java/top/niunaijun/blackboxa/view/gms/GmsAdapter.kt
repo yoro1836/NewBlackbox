@@ -9,14 +9,21 @@ import top.niunaijun.blackboxa.bean.GmsBean
 import top.niunaijun.blackboxa.databinding.ItemGmsBinding
 
 
-class GmsAdapter(private val onSettings: (GmsBean) -> Unit) : RVHolderFactory() {
+class GmsAdapter(
+    private val onSettings: (GmsBean) -> Unit,
+    private val onSignOut: (GmsBean) -> Unit
+) : RVHolderFactory() {
 
     override fun createViewHolder(parent: ViewGroup?, viewType: Int, item: Any): RVHolder<out Any> {
-        return GmsVH(inflate(R.layout.item_gms,parent), onSettings)
+        return GmsVH(inflate(R.layout.item_gms,parent), onSettings, onSignOut)
     }
 
 
-    class GmsVH(itemView:View, private val onSettings: (GmsBean) -> Unit):RVHolder<GmsBean>(itemView){
+    class GmsVH(
+        itemView:View,
+        private val onSettings: (GmsBean) -> Unit,
+        private val onSignOut: (GmsBean) -> Unit
+    ):RVHolder<GmsBean>(itemView){
 
         private val binding = ItemGmsBinding.bind(itemView)
         override fun setContent(item: GmsBean, isSelected: Boolean, payload: Any?) {
@@ -27,6 +34,8 @@ class GmsAdapter(private val onSettings: (GmsBean) -> Unit) : RVHolderFactory() 
             binding.btnSettings.visibility =
                 if (item.isInstalledGms && item.isMicroG) View.VISIBLE else View.GONE
             binding.btnSettings.setOnClickListener { onSettings(item) }
+            binding.btnSignOut.visibility = if (item.isInstalledGms) View.VISIBLE else View.GONE
+            binding.btnSignOut.setOnClickListener { onSignOut(item) }
             binding.checkbox.setOnCheckedChangeListener  { buttonView, _ ->
                 if(buttonView.isPressed){
                     binding.root.performClick()

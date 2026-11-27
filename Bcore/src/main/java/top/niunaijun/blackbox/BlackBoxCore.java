@@ -1255,6 +1255,28 @@ public class BlackBoxCore extends ClientConfiguration {
         return GmsCore.installMicroG(userId, gmsApk, vendingApk);
     }
 
+    /** Google accounts signed in to the virtual user's Google services. */
+    public android.accounts.Account[] getGoogleAccounts(int userId) {
+        android.accounts.Account[] a = top.niunaijun.blackbox.fake.frameworks.BAccountManager.get()
+                .getAccountsForUser("com.google", userId);
+        return a != null ? a : new android.accounts.Account[0];
+    }
+
+    /**
+     * Signs a Google account out of the virtual user: removes it with its tokens and restarts
+     * the virtual Google services so they drop cached sessions.
+     */
+    public boolean removeGoogleAccount(android.accounts.Account account, int userId) {
+        boolean ok = top.niunaijun.blackbox.fake.frameworks.BAccountManager.get()
+                .removeAccountForUser(account, userId);
+        try {
+            stopPackage(GmsCore.GMS_PKG, userId);
+            stopPackage(GmsCore.VENDING_PKG, userId);
+        } catch (Throwable ignored) {
+        }
+        return ok;
+    }
+
     public boolean isMicroG(int userId) {
         return GmsCore.isMicroG(userId);
     }

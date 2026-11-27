@@ -116,6 +116,25 @@ public class BAccountManager extends BlackManager<IBAccountManagerService> {
         }
     }
 
+    /** Accounts of a type in the given virtual user (for the host app's own UI). */
+    public Account[] getAccountsForUser(String type, int userId) {
+        try {
+            return getService().getAccountsAsUser(type, userId);
+        } catch (RemoteException e) {
+            e.printStackTrace();
+        }
+        return null;
+    }
+
+    public boolean removeAccountForUser(Account account, int userId) {
+        try {
+            return getService().removeAccountExplicitly(account, userId);
+        } catch (RemoteException e) {
+            e.printStackTrace();
+        }
+        return false;
+    }
+
     public boolean removeAccountExplicitly(Account account) {
         try {
             return getService().removeAccountExplicitly(account, BActivityThread.getUserId());

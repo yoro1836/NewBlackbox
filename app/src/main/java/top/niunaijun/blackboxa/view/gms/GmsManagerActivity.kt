@@ -90,7 +90,7 @@ class GmsManagerActivity : LoadingActivity() {
     }
 
     private fun initRecyclerView() {
-        mAdapter = RVAdapter<GmsBean>(this, GmsAdapter { openMicroGSettings(it.userID) })
+        mAdapter = RVAdapter<GmsBean>(this, GmsAdapter({ openMicroGSettings(it.userID) }, { signOut(it.userID) }))
             .bind(viewBinding.recyclerView)
             .setItemClickListener { view, item, _ ->
                 val checkbox = view.findViewById<Switch>(R.id.checkbox)
@@ -149,6 +149,41 @@ class GmsManagerActivity : LoadingActivity() {
             negativeButton(R.string.cancel){
                 checkbox.isChecked = !checkbox.isChecked
             }
+        }
+    }
+
+    private fun signOut(userID: Int) {
+        val accounts = try {
+            BlackBoxCore.get().getGoogleAccounts(userID)
+        } catch (e: Throwable) {
+            emptyArray()
+        }
+        if (accounts.isEmpty()) {
+            toast(getString(R.string.google_no_accounts))
+            return
+        }
+        MaterialDialog(this).show {
+            title(R.string.google_sign_out)
+            listItems(items = accounts.map { it.name }) { _, index, _ ->
+                confirmSignOut(userID, accounts[index])
+            }
+            negativeButton(R.string.cancel)
+        }
+    }
+
+    private fun confirmSignOut(userID: Int, account: android.accounts.Account) {
+        MaterialDialog(this).show {
+            title(R.string.google_sign_out)
+            message(text = getString(R.string.google_sign_out_confirm, account.name))
+            positiveButton(R.string.done) {
+                val ok = try {
+                    BlackBoxCore.get().removeGoogleAccount(account, userID)
+                } catch (e: Throwable) {
+                    false
+                }
+                toast(getString(if (ok) R.string.google_signed_out else R.string.google_sign_out_failed))
+            }
+            negativeButton(R.string.cancel)
         }
     }
 
