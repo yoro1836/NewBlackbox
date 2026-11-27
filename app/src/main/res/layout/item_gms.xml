@@ -7,15 +7,39 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content">
 
-    <TextView
-            android:id="@+id/tvTitle"
-            android:layout_width="wrap_content"
+    <LinearLayout
+            android:layout_width="0dp"
             android:layout_weight="1"
             android:layout_height="wrap_content"
             android:layout_marginStart="16dp"
-            android:textColor="@color/primary_text"
-            android:textSize="18sp"
-            tools:text="User1" />
+            android:orientation="vertical">
+
+        <TextView
+                android:id="@+id/tvTitle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textColor="@color/primary_text"
+                android:textSize="18sp"
+                tools:text="User1" />
+
+        <TextView
+                android:id="@+id/tvKind"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textSize="13sp"
+                android:visibility="gone"
+                tools:text="microG"
+                tools:visibility="visible" />
+    </LinearLayout>
+
+    <Button
+            android:id="@+id/btnSettings"
+            style="?android:attr/borderlessButtonStyle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/microg_settings"
+            android:visibility="gone"
+            tools:visibility="visible" />
 
     <Switch
             android:id="@+id/checkbox"

@@ -9,19 +9,24 @@ import top.niunaijun.blackboxa.bean.GmsBean
 import top.niunaijun.blackboxa.databinding.ItemGmsBinding
 
 
-class GmsAdapter : RVHolderFactory() {
+class GmsAdapter(private val onSettings: (GmsBean) -> Unit) : RVHolderFactory() {
 
     override fun createViewHolder(parent: ViewGroup?, viewType: Int, item: Any): RVHolder<out Any> {
-        return GmsVH(inflate(R.layout.item_gms,parent))
+        return GmsVH(inflate(R.layout.item_gms,parent), onSettings)
     }
 
 
-    class GmsVH(itemView:View):RVHolder<GmsBean>(itemView){
+    class GmsVH(itemView:View, private val onSettings: (GmsBean) -> Unit):RVHolder<GmsBean>(itemView){
 
         private val binding = ItemGmsBinding.bind(itemView)
         override fun setContent(item: GmsBean, isSelected: Boolean, payload: Any?) {
             binding.tvTitle.text = item.userName
             binding.checkbox.isChecked = item.isInstalledGms
+            binding.tvKind.visibility = if (item.isInstalledGms) View.VISIBLE else View.GONE
+            binding.tvKind.setText(if (item.isMicroG) R.string.gms_kind_microg else R.string.gms_kind_host)
+            binding.btnSettings.visibility =
+                if (item.isInstalledGms && item.isMicroG) View.VISIBLE else View.GONE
+            binding.btnSettings.setOnClickListener { onSettings(item) }
             binding.checkbox.setOnCheckedChangeListener  { buttonView, _ ->
                 if(buttonView.isPressed){
                     binding.root.performClick()

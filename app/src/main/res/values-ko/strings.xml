@@ -27,4 +27,14 @@
     <string name="gpu_applies_count">%d개 앱에서 사용</string>
     <string name="gpu_applies_none">할당된 앱 없음</string>
     <string name="gpu_unsupported">커스텀 Vulkan 드라이버는 Android 9 이상이 필요합니다.</string>
+    <string name="gms_choose">Google 서비스 종류</string>
+    <string name="gms_choose_microg">microG %s (오픈소스, 권장)</string>
+    <string name="gms_choose_host">기기의 Google Play 서비스 복사</string>
+    <string name="microg_hint">microg.org에서 microG Services와 Companion(약 110MB)을 받아 이 사용자에 설치합니다. 설치 후 microG 설정에서 Google 계정에 로그인하세요.</string>
+    <string name="microg_downloading">%1$s 받는 중: %2$s / %3$s MB</string>
+    <string name="microg_installing">microG 설치 중…</string>
+    <string name="microg_settings">microG 설정</string>
+    <string name="microg_settings_failed">microG 설정을 열 수 없습니다</string>
+    <string name="gms_kind_microg">microG</string>
+    <string name="gms_kind_host">기기 GMS</string>
 </resources>

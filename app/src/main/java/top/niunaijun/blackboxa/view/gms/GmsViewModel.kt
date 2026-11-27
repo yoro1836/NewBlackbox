@@ -25,6 +25,15 @@ class GmsViewModel(private val mRepo: GmsRepository) : BaseViewModel() {
         }
     }
 
+    val mProgressLiveData = MutableLiveData<String>()
+
+    fun installMicroG(userID: Int, cacheDir: java.io.File) {
+        launchOnUI {
+            mRepo.installMicroG(userID, cacheDir, { mProgressLiveData.postValue(it) },
+                mUpdateInstalledLiveData)
+        }
+    }
+
     fun uninstallGms(userID: Int) {
         launchOnUI {
             mRepo.uninstallGms(userID,mUpdateInstalledLiveData)

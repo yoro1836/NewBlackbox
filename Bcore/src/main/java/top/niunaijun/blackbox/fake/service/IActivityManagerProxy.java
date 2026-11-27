@@ -173,7 +173,7 @@ public class IActivityManagerProxy extends ClassInvocationStub {
                     args[1] = BlackBoxCore.getHostPkg();
                 }
 
-                if (isHostFirstAuthority((String) auth)) {
+                if (isHostFirstAuthority((String) auth) && !isMicroGAuthority((String) auth)) {
                     content = method.invoke(who, args);
                     ContentProviderDelegate.update(content, (String) auth);
                     return content;
@@ -305,6 +305,24 @@ public class IActivityManagerProxy extends ClassInvocationStub {
             }
             Slog.w(TAG, "Local provider not published in time: " + authority);
             return null;
+        }
+
+        /**
+         * With microG as the virtual GMS, its own providers (settings, Gservices, phenotype, ...)
+         * must come from the virtual package; the host GMS knows nothing about microG.
+         * Authorities microG does not provide still go to the host.
+         */
+        private static boolean isMicroGAuthority(String auth) {
+            if (!(auth.contains("com.google.android.gms") || auth.contains("com.android.vending")
+                    || auth.contains("com.google.android.gsf") || auth.equals("com.google.settings"))) {
+                return false;
+            }
+            int userId = BActivityThread.getUserId();
+            if (!GmsCore.isMicroG(userId)) {
+                return false;
+            }
+            return BlackBoxCore.getBPackageManager()
+                    .resolveContentProvider(auth, GET_META_DATA, userId) != null;
         }
 
         private static boolean isHostFirstAuthority(String auth) {

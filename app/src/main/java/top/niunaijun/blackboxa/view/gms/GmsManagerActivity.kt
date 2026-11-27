@@ -8,6 +8,10 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.recyclerview.widget.LinearLayoutManager
 import cbfg.rvadapter.RVAdapter
 import com.afollestad.materialdialogs.MaterialDialog
+import com.afollestad.materialdialogs.callbacks.onDismiss
+import com.afollestad.materialdialogs.list.listItems
+import top.niunaijun.blackbox.BlackBoxCore
+import top.niunaijun.blackboxa.data.MicroGDownloader
 import top.niunaijun.blackboxa.R
 import top.niunaijun.blackboxa.bean.GmsBean
 import top.niunaijun.blackboxa.databinding.ActivityGmsBinding
@@ -24,6 +28,8 @@ class GmsManagerActivity : LoadingActivity() {
     private lateinit var mAdapter: RVAdapter<GmsBean>
 
     private val viewBinding: ActivityGmsBinding by inflate()
+
+    private var progressDialog: MaterialDialog? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -54,6 +60,7 @@ class GmsManagerActivity : LoadingActivity() {
                 if (bean.userID == result.userID) {
                     if (result.success) {
                         bean.isInstalledGms = !bean.isInstalledGms
+                        bean.isMicroG = bean.isInstalledGms && result.isMicroG
                     }
                     mAdapter.replaceAt( index,bean)
                     break
@@ -61,6 +68,8 @@ class GmsManagerActivity : LoadingActivity() {
             }
 
             hideLoading()
+            progressDialog?.dismiss()
+            progressDialog = null
 
             if (result.success) {
                 toast(result.msg)
@@ -73,11 +82,16 @@ class GmsManagerActivity : LoadingActivity() {
             }
         }
 
+        viewModel.mProgressLiveData.observe(this) { text ->
+            progressDialog?.message(text = getString(R.string.microg_hint) + "\n\n" + text)
+        }
+
         viewModel.getInstalledUser()
     }
 
     private fun initRecyclerView() {
-        mAdapter = RVAdapter<GmsBean>(this, GmsAdapter()).bind(viewBinding.recyclerView)
+        mAdapter = RVAdapter<GmsBean>(this, GmsAdapter { openMicroGSettings(it.userID) })
+            .bind(viewBinding.recyclerView)
             .setItemClickListener { view, item, _ ->
                 val checkbox = view.findViewById<Switch>(R.id.checkbox)
                 if (item.isInstalledGms) {
@@ -91,6 +105,40 @@ class GmsManagerActivity : LoadingActivity() {
     }
 
     private fun installGms(userID: Int, checkbox: Switch){
+        var chosen = false
+        MaterialDialog(this).show {
+            title(R.string.gms_choose)
+            listItems(items = listOf(
+                getString(R.string.gms_choose_microg, MicroGDownloader.VERSION),
+                getString(R.string.gms_choose_host)
+            )) { _, index, _ ->
+                chosen = true
+                if (index == 0) {
+                    installMicroG(userID)
+                } else {
+                    installHostGms(userID, checkbox)
+                }
+            }
+            negativeButton(R.string.cancel)
+            onDismiss {
+                if (!chosen) {
+                    checkbox.isChecked = !checkbox.isChecked
+                }
+            }
+        }
+    }
+
+    private fun installMicroG(userID: Int) {
+        progressDialog = MaterialDialog(this).show {
+            title(R.string.gms_manager)
+            message(text = getString(R.string.microg_hint))
+            cancelable(false)
+            cancelOnTouchOutside(false)
+        }
+        viewModel.installMicroG(userID, cacheDir)
+    }
+
+    private fun installHostGms(userID: Int, checkbox: Switch){
         MaterialDialog(this).show {
             title(R.string.enable_gms)
             message(R.string.enable_gms_hint)
@@ -101,6 +149,17 @@ class GmsManagerActivity : LoadingActivity() {
             negativeButton(R.string.cancel){
                 checkbox.isChecked = !checkbox.isChecked
             }
+        }
+    }
+
+    private fun openMicroGSettings(userID: Int) {
+        val ok = try {
+            BlackBoxCore.get().launchApk("com.google.android.gms", userID)
+        } catch (e: Throwable) {
+            false
+        }
+        if (!ok) {
+            toast(getString(R.string.microg_settings_failed))
         }
     }
 

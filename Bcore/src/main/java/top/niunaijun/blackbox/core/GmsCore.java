@@ -1,6 +1,9 @@
 package top.niunaijun.blackbox.core;
 
+import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
+
+import java.io.File;
 
 import java.util.HashSet;
 import java.util.Set;
@@ -83,6 +86,11 @@ public class GmsCore {
     }
 
     public static InstallResult installGApps(int userId) {
+        int other = otherGmsUser(userId, false);
+        if (other >= 0) {
+            return new InstallResult().installError(GMS_PKG,
+                    "User " + other + " uses microG; turn it off there first.");
+        }
         Set<String> googleApps = new HashSet<>();
 
         googleApps.addAll(GOOGLE_SERVICE);
@@ -99,6 +107,69 @@ public class GmsCore {
     public static void uninstallGApps(int userId) {
         uninstallPackages(GOOGLE_SERVICE, userId);
         uninstallPackages(GOOGLE_APP, userId);
+    }
+
+    /**
+     * Installs microG (GmsCore + companion store) as the user's Google services in place of a
+     * copy of the host GMS. microG implements the GMS APIs in open source; the virtual package
+     * manager spoofs its Google signature (see FakeSignature). It ships its own Gservices
+     * provider, so the host GSF is not copied.
+     */
+    public static InstallResult installMicroG(int userId, File gmsApk, File vendingApk) {
+        BlackBoxCore core = BlackBoxCore.get();
+        int other = otherGmsUser(userId, true);
+        if (other >= 0) {
+            return new InstallResult().installError(GMS_PKG,
+                    "User " + other + " uses the device's Google services; turn them off there first.");
+        }
+        uninstallGApps(userId);
+        InstallResult r = core.installPackageAsUser(gmsApk, userId);
+        if (r == null || !r.success) {
+            return r != null ? r : new InstallResult().installError(GMS_PKG, "microG install returned no result");
+        }
+        if (!GMS_PKG.equals(r.packageName)) {
+            core.uninstallPackageAsUser(r.packageName, userId);
+            return new InstallResult().installError(GMS_PKG, "Not a microG GmsCore APK: " + r.packageName);
+        }
+        if (vendingApk != null) {
+            InstallResult v = core.installPackageAsUser(vendingApk, userId);
+            if (v == null || !v.success) {
+                uninstallGApps(userId);
+                return v != null ? v : new InstallResult().installError(VENDING_PKG, "Companion install returned no result");
+            }
+        }
+        return r;
+    }
+
+    /** True when the virtual com.google.android.gms is microG (it asks for signature spoofing). */
+    public static boolean isMicroG(int userId) {
+        try {
+            if (!BlackBoxCore.get().isInstalled(GMS_PKG, userId)) {
+                return false;
+            }
+            ApplicationInfo ai = BlackBoxCore.getBPackageManager()
+                    .getApplicationInfo(GMS_PKG, PackageManager.GET_META_DATA, userId);
+            return ai != null && ai.metaData != null && ai.metaData.containsKey("fake-signature");
+        } catch (Throwable ignored) {
+            return false;
+        }
+    }
+
+    /**
+     * Virtual packages are shared by all virtual users, so one user cannot run microG while
+     * another runs the host GMS copy. Returns the other user that blocks the switch, or -1.
+     */
+    private static int otherGmsUser(int userId, boolean wantMicroG) {
+        try {
+            for (top.niunaijun.blackbox.core.system.user.BUserInfo u : BlackBoxCore.get().getUsers()) {
+                if (u.id != userId && BlackBoxCore.get().isInstalled(GMS_PKG, u.id)
+                        && isMicroG(u.id) != wantMicroG) {
+                    return u.id;
+                }
+            }
+        } catch (Throwable ignored) {
+        }
+        return -1;
     }
 
     public static void remove(String packageName) {

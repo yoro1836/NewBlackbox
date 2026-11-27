@@ -20,7 +20,8 @@ class GmsRepository {
             val userName =
                 AppManager.mRemarkSharedPreferences.getString("Remark$userId", "User $userId") ?: ""
             val isInstalled = BlackBoxCore.get().isInstallGms(userId)
-            val bean = GmsBean(userId, userName, isInstalled)
+            val isMicroG = isInstalled && BlackBoxCore.get().isMicroG(userId)
+            val bean = GmsBean(userId, userName, isInstalled, isMicroG)
             userList.add(bean)
         }
 
@@ -43,6 +44,40 @@ class GmsRepository {
         mUpdateInstalledLiveData.postValue(bean)
     }
 
+
+    /** Downloads (or reuses) the pinned microG APKs and installs them for the user. */
+    fun installMicroG(
+        userID: Int,
+        cacheDir: java.io.File,
+        progress: (String) -> Unit,
+        mUpdateInstalledLiveData: MutableLiveData<GmsInstallBean>
+    ) {
+        val msg = try {
+            val dir = java.io.File(cacheDir, "microg")
+            val apks = listOf(MicroGDownloader.GMS_CORE, MicroGDownloader.COMPANION).map { apk ->
+                MicroGDownloader.fetch(apk, dir) { done, total ->
+                    progress(getString(R.string.microg_downloading, apk.label,
+                        (done / (1024 * 1024)).toString(), (total / (1024 * 1024)).toString()))
+                }
+            }
+            progress(getString(R.string.microg_installing))
+            val result = BlackBoxCore.get().installMicroG(userID, apks[0], apks[1])
+            if (result.success) {
+                dir.deleteRecursively()
+                null
+            } else {
+                result.msg ?: "?"
+            }
+        } catch (e: Throwable) {
+            e.toString()
+        }
+        val bean = if (msg == null) {
+            GmsInstallBean(userID, true, getString(R.string.install_success), true)
+        } else {
+            GmsInstallBean(userID, false, getString(R.string.install_fail, msg), true)
+        }
+        mUpdateInstalledLiveData.postValue(bean)
+    }
 
     fun uninstallGms(
         userID: Int,

@@ -1250,6 +1250,15 @@ public class BlackBoxCore extends ClientConfiguration {
         return GmsCore.installGApps(userId);
     }
 
+    /** Installs microG as the user's Google services (see GmsCore#installMicroG). */
+    public InstallResult installMicroG(int userId, File gmsApk, File vendingApk) {
+        return GmsCore.installMicroG(userId, gmsApk, vendingApk);
+    }
+
+    public boolean isMicroG(int userId) {
+        return GmsCore.isMicroG(userId);
+    }
+
     public boolean uninstallGms(int userId) {
         GmsCore.uninstallGApps(userId);
         return !GmsCore.isInstalledGoogleService(userId);

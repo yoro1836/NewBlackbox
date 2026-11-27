@@ -101,4 +101,14 @@
     <string name="gpu_applies_count">Used by %d app(s)</string>
     <string name="gpu_applies_none">Not assigned to any app</string>
     <string name="gpu_unsupported">Custom Vulkan drivers require Android 9 or newer.</string>
+    <string name="gms_choose">Google services provider</string>
+    <string name="gms_choose_microg">microG %s (open source, recommended)</string>
+    <string name="gms_choose_host">Copy this device\'s Google Play services</string>
+    <string name="microg_hint">Downloads microG Services and Companion (about 110 MB) from microg.org and installs them in this user. Sign in to your Google account from the microG settings afterwards.</string>
+    <string name="microg_downloading">Downloading %1$s: %2$s / %3$s MB</string>
+    <string name="microg_installing">Installing microG…</string>
+    <string name="microg_settings">microG settings</string>
+    <string name="microg_settings_failed">Could not open the microG settings</string>
+    <string name="gms_kind_microg">microG</string>
+    <string name="gms_kind_host">Device GMS</string>
 </resources>
