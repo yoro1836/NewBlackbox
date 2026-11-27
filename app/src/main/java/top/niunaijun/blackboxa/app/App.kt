@@ -5,6 +5,8 @@ import android.app.Application
 import android.content.Context
 import android.util.Log
 import top.niunaijun.blackbox.BlackBoxCore
+import top.niunaijun.blackbox.core.gpu.VulkanDriverManager
+import top.niunaijun.blackboxa.data.FrameGen
 
 
 class App : Application() {
@@ -45,6 +47,8 @@ class App : Application() {
                 Log.e("App", "Error in doAttachBaseContext: ${e.message}")
             }
 
+            installFrameGen(mContext)
+
             try {
 
                 BlackBoxCore.get().onAfterMainApplicationAttach(this, base)
@@ -59,6 +63,27 @@ class App : Application() {
             if (base != null) {
                 mContext = base
             }
+        }
+    }
+
+    /**
+     * Runs in every process, the virtual app processes included: there the engine asks it
+     * whether to hand the app our Vulkan wrapper (frame generation) instead of libvulkan.
+     */
+    private fun installFrameGen(base: Context) {
+        try {
+            VulkanDriverManager.setWrapperProvider(object : VulkanDriverManager.WrapperProvider {
+                override fun wrapperFor(packageName: String): String? {
+                    if (!FrameGen.get(base, packageName).on) return null
+                    return FrameGen.library(base)?.absolutePath
+                }
+
+                override fun wrapperConfig(packageName: String): String =
+                    "log=${FrameGen.logFile(base, packageName).absolutePath};" +
+                        FrameGen.get(base, packageName).encode()
+            })
+        } catch (e: Throwable) {
+            Log.e("App", "Frame generation setup failed: ${e.message}")
         }
     }
 

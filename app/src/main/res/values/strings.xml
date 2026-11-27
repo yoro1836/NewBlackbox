@@ -141,4 +141,18 @@
     <string name="installed_badge">Installed</string>
     <string name="fake_location_pick">Pick location</string>
     <string name="fake_location_use">Use this location</string>
+    <string name="framegen">Frame generation</string>
+    <string name="framegen_hint">Doubles the frame rate of Vulkan games inside the app (FSR 3.1 optical flow + frame interpolation). Applies the next time the app starts.</string>
+    <string name="framegen_missing">The frame generation library is missing from this build.</string>
+    <string name="framegen_enable">Use frame generation</string>
+    <string name="framegen_mode">Mode</string>
+    <string name="framegen_interpolate">Interpolate</string>
+    <string name="framegen_extrapolate">Extrapolate</string>
+    <string name="framegen_interpolate_hint">Smoother, about one frame more latency.</string>
+    <string name="framegen_extrapolate_hint">Predicts ahead: less latency, more artifacts.</string>
+    <string name="framegen_target">Target fps</string>
+    <string name="framegen_scale">Flow resolution</string>
+    <string name="framegen_scale_hint">Optical flow runs at this size; the generated frame is always full size. Lower is faster.</string>
+    <string name="framegen_log">Log</string>
+    <string name="framegen_log_empty">No log yet. Start the app with frame generation on.</string>
 </resources>

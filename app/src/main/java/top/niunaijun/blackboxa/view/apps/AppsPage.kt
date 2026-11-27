@@ -23,6 +23,7 @@ import androidx.compose.material.icons.outlined.CleaningServices
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Extension
 import androidx.compose.material.icons.outlined.StopCircle
+import androidx.compose.material.icons.outlined.Speed
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenu
@@ -63,6 +64,7 @@ import top.niunaijun.blackbox.core.xposed.XposedManager
 import top.niunaijun.blackboxa.R
 import top.niunaijun.blackboxa.app.AppManager
 import top.niunaijun.blackboxa.bean.AppInfo
+import top.niunaijun.blackboxa.data.FrameGen
 import top.niunaijun.blackboxa.ui.CenterProgress
 import top.niunaijun.blackboxa.ui.ConfirmDialog
 import top.niunaijun.blackboxa.ui.DrawableIcon
@@ -84,6 +86,7 @@ private sealed interface AppAction {
     data class Clear(val app: AppInfo) : AppAction
     data class Stop(val app: AppInfo) : AppAction
     data class Shortcut(val app: AppInfo) : AppAction
+    data class FrameGen(val app: AppInfo) : AppAction
     data object ShortcutHint : AppAction
 }
 
@@ -108,6 +111,7 @@ fun AppsPage(
     val items = remember { mutableStateListOf<AppInfo>() }
     var menuFor by remember { mutableStateOf<String?>(null) }
     var action by remember { mutableStateOf<AppAction?>(null) }
+    var frameGenVersion by remember { mutableStateOf(0) }
     val haptics = LocalHapticFeedback.current
 
     controller.install = { source -> onBusy(true); vm.install(source, userId) }
@@ -170,8 +174,12 @@ fun AppsPage(
             items(items, key = { it.packageName }) { app ->
                 ReorderableItem(reorder, key = app.packageName) { dragging ->
                     Box {
+                        val fg = remember(app.packageName, frameGenVersion) {
+                            FrameGen.get(context, app.packageName).on
+                        }
                         AppTile(
                             app,
+                            frameGen = fg,
                             modifier = Modifier
                                 .scale(if (dragging) 1.08f else 1f)
                                 .longPressDraggableHandle(
@@ -276,13 +284,14 @@ fun AppsPage(
                 }
             }
         )
+        is AppAction.FrameGen -> FrameGenDialog(a.app) { action = null; frameGenVersion++ }
         null -> {}
     }
 }
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun AppTile(app: AppInfo, modifier: Modifier, onClick: () -> Unit) {
+private fun AppTile(app: AppInfo, frameGen: Boolean, modifier: Modifier, onClick: () -> Unit) {
     Surface(
         shape = RoundedCornerShape(16.dp),
         color = androidx.compose.ui.graphics.Color.Transparent,
@@ -294,6 +303,19 @@ private fun AppTile(app: AppInfo, modifier: Modifier, onClick: () -> Unit) {
         ) {
             Box {
                 DrawableIcon(app.icon, size = 52.dp)
+                if (frameGen) {
+                    Surface(
+                        shape = RoundedCornerShape(6.dp),
+                        color = MaterialTheme.colorScheme.primaryContainer,
+                        modifier = Modifier.align(Alignment.TopEnd)
+                    ) {
+                        Icon(
+                            Icons.Outlined.Speed, null,
+                            tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                            modifier = Modifier.padding(2.dp).height(14.dp)
+                        )
+                    }
+                }
                 if (app.isXpModule) {
                     Surface(
                         shape = RoundedCornerShape(6.dp),
@@ -339,6 +361,11 @@ private fun AppMenu(app: AppInfo, expanded: Boolean, onDismiss: () -> Unit, onAc
                 }
             )
         }
+        DropdownMenuItem(
+            text = { Text(stringResource(R.string.framegen)) },
+            leadingIcon = { Icon(Icons.Outlined.Speed, null) },
+            onClick = { onAction(AppAction.FrameGen(app)) }
+        )
         DropdownMenuItem(
             text = { Text(stringResource(R.string.app_shortcut)) },
             leadingIcon = { Icon(Icons.Outlined.AddToHomeScreen, null) },
